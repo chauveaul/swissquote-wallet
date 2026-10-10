@@ -8,9 +8,9 @@ import { AccountAvatar } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { demoQuotes } from '@/features/market/fixtures';
-import { appNow, localActivityId, useLocalActivity } from '@/features/market/queries';
+import { appNow, localActivityId, useEthChf, useLocalActivity } from '@/features/market/queries';
 import type { FeeSpeed } from '@/features/market/types';
-import { feeFor, findContact, parseRecipient, useSendDraft } from '@/features/send/draft';
+import { findContact, parseRecipient, useFeeEstimate, useSendDraft } from '@/features/send/draft';
 import { accountColor } from '@/features/wallet/accountColor';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
 import { useNetworkId, useSelectedAccount, useWallet } from '@/features/wallet/store';
@@ -38,12 +38,13 @@ export default function Review() {
   const [error, setError] = useState<string | null>(null);
 
   const recipient = parseRecipient(to);
-  if (!recipient || !(Number(amount) > 0)) return <Redirect href="/send" />;
-
   const contact = findContact(recipient);
   const value = Number(amount);
-  const fee = feeFor(speed);
+  const ethChf = useEthChf();
+  const fee = useFeeEstimate(speed);
   const total = value + fee.eth;
+
+  if (!recipient || !(Number(amount) > 0)) return <Redirect href="/send" />;
 
   const confirm = async () => {
     setError(null);
@@ -62,7 +63,7 @@ export default function Review() {
         status: 'pending',
         eta: fee.eta,
         amount: `− ${formatNumber(value, 4)} ETH`,
-        fiat: formatChf(value * demoQuotes.ethChf),
+        fiat: formatChf(value * ethChf),
         timestamp: appNow(),
         hash,
       });
@@ -84,7 +85,7 @@ export default function Review() {
           {formatNumber(value, 4)} ETH
         </Text>
         <Text size={15} color={colors.textSecondary}>
-          ≈ {formatChf(value * demoQuotes.ethChf)}
+          ≈ {formatChf(value * ethChf)}
         </Text>
       </View>
 
@@ -160,7 +161,7 @@ export default function Review() {
             {formatNumber(total, 5)} ETH
           </Text>
           <Text size={13} color={colors.textSecondary}>
-            ≈ {formatChf(total * demoQuotes.ethChf)}
+            ≈ {formatChf(total * ethChf)}
           </Text>
         </View>
       </View>

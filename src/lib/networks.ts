@@ -1,7 +1,7 @@
 import type { Chain } from 'viem';
-import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains';
+import { arbitrum, base, mainnet, optimism, polygon, sepolia } from 'viem/chains';
 
-export type NetworkId = 'eth' | 'arb' | 'op' | 'base' | 'pol';
+export type NetworkId = 'eth' | 'arb' | 'op' | 'base' | 'pol' | 'sep';
 
 export type Network = {
   id: NetworkId;
@@ -19,6 +19,7 @@ export const networks: readonly Network[] = [
   { id: 'op', mark: 'O', name: 'OP Mainnet', shortName: 'Optimism', chain: optimism },
   { id: 'base', mark: 'B', name: 'Base', shortName: 'Base', chain: base },
   { id: 'pol', mark: 'P', name: 'Polygon PoS', shortName: 'Polygon', chain: polygon },
+  { id: 'sep', mark: 'S', name: 'Sepolia Testnet', shortName: 'Sepolia', chain: sepolia },
 ];
 
 export function getNetwork(id: NetworkId): Network {
@@ -38,6 +39,7 @@ export function rpcUrl(id: NetworkId): string {
     op: process.env.EXPO_PUBLIC_RPC_URL_OP,
     base: process.env.EXPO_PUBLIC_RPC_URL_BASE,
     pol: process.env.EXPO_PUBLIC_RPC_URL_POL,
+    sep: process.env.EXPO_PUBLIC_RPC_URL_SEP,
   };
   return env[id] ?? getNetwork(id).chain.rpcUrls.default.http[0]!;
 }

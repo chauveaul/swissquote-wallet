@@ -111,7 +111,7 @@ export const useWallet = create<WalletState>((set, get) => ({
     const meta: WalletMeta = {
       accounts: [{ index: 0, name: 'Account 1', address: deriveAddress(phrase, 0) }],
       selectedIndex: 0,
-      networkId: 'eth',
+      networkId: 'sep',
       biometrics: false,
     };
     if (enableBiometrics) {

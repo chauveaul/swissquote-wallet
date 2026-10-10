@@ -1,8 +1,13 @@
+import { useQuery } from '@tanstack/react-query';
 import { getAddress, isAddress, type Address } from 'viem';
 import { create } from 'zustand';
 
 import { demoContacts, demoQuotes } from '@/features/market/fixtures';
+import { fetchEthChf } from '@/features/market/queries';
 import type { Contact, FeeSpeed } from '@/features/market/types';
+import { useWallet } from '@/features/wallet/store';
+import { DEMO_MODE } from '@/lib/config';
+import { estimateFees } from '@/services/chain';
 
 /** Transfer being composed on Send and confirmed on Review. */
 type SendDraft = {
@@ -49,4 +54,29 @@ export function findContact(address: Address | null): Contact | null {
 export function feeFor(speed: FeeSpeed) {
   const eth = demoQuotes.feeEth[speed];
   return { eth, chf: eth * demoQuotes.ethChf, eta: demoQuotes.feeEta[speed] };
+}
+
+/** Gas limit for a plain native transfer. */
+const NATIVE_TX_GAS = 21_000n;
+
+/**
+ * Network fee for the selected speed. Demo mode returns the design's quotes;
+ * live mode estimates on-chain (EIP-1559 max fee × 21,000 gas) and converts
+ * to CHF at the live spot price.
+ */
+export function useFeeEstimate(speed: FeeSpeed) {
+  const networkId = useWallet((s) => s.meta?.networkId ?? 'eth');
+  const { data } = useQuery({
+    queryKey: ['feeEstimate', networkId, speed],
+    enabled: !DEMO_MODE,
+    queryFn: async () => {
+      const fees = await estimateFees(networkId, speed);
+      const eth = Number(fees.maxFeePerGas * NATIVE_TX_GAS) / 1e18;
+      return { eth, chf: eth * (await fetchEthChf()), eta: demoQuotes.feeEta[speed] };
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    placeholderData: (prev) => prev,
+  });
+  return data ?? feeFor(speed);
 }

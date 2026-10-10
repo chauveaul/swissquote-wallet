@@ -8,9 +8,8 @@ import { Icon } from '@/components/Icon';
 import { AccountAvatar, TokenPill } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
-import { demoQuotes } from '@/features/market/fixtures';
-import { useToken } from '@/features/market/queries';
-import { feeFor, findContact, parseRecipient, useSendDraft } from '@/features/send/draft';
+import { useEthChf, useToken } from '@/features/market/queries';
+import { findContact, parseRecipient, useFeeEstimate, useSendDraft } from '@/features/send/draft';
 import { accountColor } from '@/features/wallet/accountColor';
 import { useSelectedAccount } from '@/features/wallet/store';
 import { formatChf, formatNumber, truncateAddress } from '@/lib/format';
@@ -27,7 +26,8 @@ export default function Send() {
   const recipient = parseRecipient(to);
   const contact = findContact(recipient);
   const value = Number(amount) || 0;
-  const fee = feeFor(speed).eth;
+  const ethChf = useEthChf();
+  const fee = useFeeEstimate(speed).eth;
 
   const amountError =
     value <= 0 ? 'Enter an amount.' : value + fee > balance ? 'Insufficient balance to cover amount and network fee.' : null;
@@ -137,7 +137,7 @@ export default function Send() {
           </View>
           <View style={styles.amountMeta}>
             <Text size={14} color={colors.textSecondary}>
-              ≈ {formatChf(value * demoQuotes.ethChf)}
+              ≈ {formatChf(value * ethChf)}
             </Text>
             <Text size={14} color={colors.textSecondary}>
               Balance {formatNumber(balance, 4)} ETH
