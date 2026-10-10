@@ -1,18 +1,25 @@
+import { formatEther, type Address } from 'viem';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { create } from 'zustand';
 
+import { useNetworkId, useWallet } from '@/features/wallet/store';
 import { DEMO_MODE, MARKET_DATA } from '@/lib/config';
+import type { NetworkId } from '@/lib/networks';
+import { estimateFees, getNativeBalance } from '@/services/chain';
+import { colors } from '@/theme/tokens';
 
 import { assetName, CRYPTO_CATALOG, tokenColor, tokenMark, WALLET_TOKENS } from './catalog';
-import { demoActivity, demoPortfolio, DEMO_NOW } from './fixtures';
+import { demoActivity, demoPortfolio, demoQuotes, DEMO_NOW } from './fixtures';
 import type { Quote } from './series';
 import { marketData } from './sources';
-import type { ActivityItem, MarketToken, Portfolio, PriceRange, TokenHolding, TokenSymbol } from './types';
+import type { ActivityItem, FeeSpeed, MarketToken, Portfolio, PriceRange, TokenHolding, TokenSymbol } from './types';
 
 /*
- * Data access hooks. Screens only depend on these; where the data comes from
+ * Data access hooks. Screens only depend on these; where prices come from
  * (demo fixtures or Swissquote) is decided by `marketData` in ./sources.
+ * Balances and the network fee come from the chain for real when
+ * `DEMO_MODE=false` (see `usePortfolio`/`useFeeEstimate` below).
  */
 
 /** Demo data is anchored to the design's date so "Today" groups line up. */
@@ -59,7 +66,7 @@ export const PRICES_LIVE = MARKET_DATA !== 'demo';
 
 const EMPTY_PORTFOLIO: Portfolio = { tokens: [], totalChf: 0, changeTodayChf: 0, changeTodayPct: 0 };
 
-/** Holdings valued at the latest prices. Balances are still demo data. */
+/** Holdings valued at the latest prices. Demo-mode balances only. */
 export function valuePortfolio(base: Portfolio, quotes: Map<TokenSymbol, Quote | null>): Portfolio {
   const tokens: TokenHolding[] = base.tokens.map((t) => {
     const q = quotes.get(t.symbol);
@@ -73,14 +80,79 @@ export function valuePortfolio(base: Portfolio, quotes: Map<TokenSymbol, Quote |
   return { tokens, totalChf, changeTodayChf, changeTodayPct: opening > 0 ? (changeTodayChf / opening) * 100 : 0 };
 }
 
+/**
+ * Real holdings, live mode: native ETH balance read from the chain, priced at
+ * the live Swissquote spot rate when available (falls back to the fixture
+ * rate while that quote hasn't loaded yet — same fallback demo mode uses).
+ * No indexer yet, so only the native balance is read; WBTC/USDC/LINK stay
+ * demo-only.
+ */
+async function liveNativePortfolio(networkId: NetworkId, address: Address, ethChf: number | null): Promise<Portfolio> {
+  const { formatted } = await getNativeBalance(networkId, address);
+  const amount = Number(formatted);
+  if (amount <= 0) return EMPTY_PORTFOLIO;
+  const valueChf = amount * (ethChf ?? demoQuotes.ethChf);
+  const eth: TokenHolding = {
+    symbol: 'ETH',
+    name: 'Ethereum',
+    mark: 'ETH',
+    color: colors.token.ETH,
+    amount,
+    displayDecimals: 4,
+    valueChf,
+    change24hPct: 0,
+    priceAvailable: ethChf !== null,
+  };
+  return { tokens: [eth], totalChf: valueChf, changeTodayChf: 0, changeTodayPct: 0 };
+}
+
 export function usePortfolio(accountIndex: number) {
+  const networkId = useNetworkId();
+  const address = useWallet((s) => s.meta?.accounts.find((a) => a.index === accountIndex)?.address);
   const quotes = useQuotes();
   const queryClient = useQueryClient();
+  const ethChf = quotes.bySymbol.get('ETH')?.price ?? null;
+
+  const live = useQuery({
+    queryKey: ['portfolio', accountIndex, networkId, ethChf],
+    queryFn: () => (address ? liveNativePortfolio(networkId, address, ethChf) : Promise.resolve(EMPTY_PORTFOLIO)),
+    enabled: !DEMO_MODE,
+    staleTime: 30_000,
+  });
+
   // Demo holdings belong to the first account; derived accounts start empty.
-  const base = accountIndex === 0 ? demoPortfolio : EMPTY_PORTFOLIO;
-  const data = PRICES_LIVE ? valuePortfolio(base, quotes.bySymbol) : base;
-  const refetch = useCallback(() => queryClient.invalidateQueries({ queryKey: ['quotes'] }), [queryClient]);
-  return { data, isRefetching: quotes.isRefetching, refetch, delayed: quotes.delayed };
+  const demoBase = accountIndex === 0 ? demoPortfolio : EMPTY_PORTFOLIO;
+  const demoData = PRICES_LIVE ? valuePortfolio(demoBase, quotes.bySymbol) : demoBase;
+
+  const refetch = useCallback(() => {
+    if (!DEMO_MODE) live.refetch();
+    queryClient.invalidateQueries({ queryKey: ['quotes'] });
+  }, [live, queryClient]);
+
+  if (DEMO_MODE) return { data: demoData, isRefetching: quotes.isRefetching, refetch, delayed: quotes.delayed };
+  return { data: live.data ?? EMPTY_PORTFOLIO, isRefetching: live.isRefetching || quotes.isRefetching, refetch, delayed: quotes.delayed };
+}
+
+/**
+ * Network fee for a transfer: a real EIP-1559 estimate in live mode, the
+ * fixture amount in demo mode — priced at the live ETH rate when available,
+ * same fallback/null convention as `feeFor` in `features/send/draft.ts`.
+ */
+export function useFeeEstimate(networkId: NetworkId, speed: FeeSpeed, ethChf: number | null) {
+  const toChf = (eth: number) => (ethChf === null ? null : eth * ethChf);
+  const fixture = { eth: demoQuotes.feeEth[speed], chf: toChf(demoQuotes.feeEth[speed]), eta: demoQuotes.feeEta[speed] };
+  return useQuery({
+    queryKey: ['fee', networkId, speed, DEMO_MODE, ethChf],
+    queryFn: async () => {
+      if (DEMO_MODE) return fixture;
+      // 21000 gas: the cost of a plain native transfer (what `sendNative` sends).
+      const { maxFeePerGas } = await estimateFees(networkId, speed);
+      const eth = Number(formatEther(maxFeePerGas * 21_000n));
+      return { eth, chf: toChf(eth), eta: fixture.eta };
+    },
+    placeholderData: fixture,
+    staleTime: 10_000,
+  });
 }
 
 export function useToken(accountIndex: number, symbol: TokenSymbol) {

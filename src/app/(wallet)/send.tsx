@@ -9,14 +9,14 @@ import { AccountAvatar, TokenPill } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { RecipientPicker } from '@/components/RecipientPicker';
 import { Overline, Text } from '@/components/Text';
-import { useSpotPrice, useToken } from '@/features/market/queries';
+import { useFeeEstimate, useSpotPrice, useToken } from '@/features/market/queries';
 import { useFiat } from '@/features/settings/useFiat';
 import type { Contact } from '@/features/market/types';
 import type { AccountMeta } from '@/features/wallet/store';
-import { feeFor, parseRecipient, useSendDraft } from '@/features/send/draft';
+import { parseRecipient, useSendDraft } from '@/features/send/draft';
 import { identifyRecipient } from '@/features/send/recipient';
 import { accountColor } from '@/features/wallet/accountColor';
-import { useSelectedAccount, useWallet } from '@/features/wallet/store';
+import { useNetworkId, useSelectedAccount, useWallet } from '@/features/wallet/store';
 import { formatNumber, truncateAddress } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -27,6 +27,7 @@ const NO_ACCOUNTS: AccountMeta[] = [];
 export default function Send() {
   const fiat = useFiat();
   const account = useSelectedAccount();
+  const networkId = useNetworkId();
   const eth = useToken(account.index, 'ETH');
   const { to, amount, speed, setTo, setAmount } = useSendDraft();
   const [submitted, setSubmitted] = useState(false);
@@ -39,7 +40,8 @@ export default function Send() {
   const known = identifyRecipient(recipient, account.index, accounts, contacts);
   const value = Number(amount) || 0;
   const ethChf = useSpotPrice('ETH');
-  const fee = feeFor(speed, ethChf).eth;
+  const { data: feeEstimate } = useFeeEstimate(networkId, speed, ethChf);
+  const fee = feeEstimate?.eth ?? 0;
 
   const amountError =
     value <= 0 ? 'Enter an amount.' : value + fee > balance ? 'Insufficient balance to cover amount and network fee.' : null;

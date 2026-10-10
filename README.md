@@ -23,7 +23,7 @@ Requires Node ≥ 20.19.4 (see `.nvmrc`).
 ```bash
 npm install
 npx expo run:ios        # or run:android – development build (native modules are required)
-npm run web             # browser preview only (in-memory storage, no biometrics)
+npm run web             # browser preview only (localStorage, no biometrics)
 
 npm run typecheck && npm run lint && npm test
 ```
@@ -35,9 +35,33 @@ Expo Go is not supported: biometric-protected Keychain items need `NSFaceIDUsage
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `EXPO_PUBLIC_DEMO_MODE` | `true` | Serve the design's balances/prices/activity and simulate broadcasting. Key management is always real. |
-| `EXPO_PUBLIC_RPC_URL_{ETH,ARB,OP,BASE,POL}` | chain's public RPC | RPC endpoints for fee estimation and broadcasting. |
+| `EXPO_PUBLIC_RPC_URL_{ETH,ARB,OP,BASE,POL,SEPOLIA}` | chain's public RPC | RPC endpoints for fee estimation and broadcasting. |
 | `EXPO_PUBLIC_MARKET_DATA` | `swissquote` | `swissquote` = Swissquote's own real-time quotes for all 55 listed cryptos, daily history and FX; `kraken` = Kraken public data (intraday history, wallet tokens only); `demo` = the design's fixed sample prices. Independent of `EXPO_PUBLIC_DEMO_MODE`. |
 | `EXPO_PUBLIC_SWISSQUOTE_API_URL` | `https://www.swissquote.ch` (web dev: `/sq-api` proxy) | Base URL of the price service (e.g. a Swissquote mobile gateway). |
+
+Copy `.env.example` to `.env` to override these (`.env` is gitignored, not committed).
+
+### Testing a real send on Sepolia
+
+With `EXPO_PUBLIC_DEMO_MODE=false`, the wallet's own ETH balance and the network fee shown in
+Send/Review come from the chain for real, and Confirm broadcasts a real signed transaction.
+(Prices still come from `EXPO_PUBLIC_MARKET_DATA` independently of this flag — see above.)
+
+1. `npx expo start --web` (fastest iteration; localStorage/no biometrics — use a
+   `run:ios`/`run:android` dev build to test the real Keychain/Face ID path).
+2. Create a wallet (fresh mnemonic — not the same address as any key used in `viem/`'s sandbox,
+   since mnemonic-derived accounts can't import a raw private key).
+3. **Accounts & networks** → select **Sepolia (testnet)**.
+4. **Receive** → copy the address, fund it from a faucet (e.g.
+   https://www.alchemy.com/faucets/ethereum-sepolia or
+   https://www.coinbase.com/faucets/ethereum-sepolia-faucet).
+5. Pull-to-refresh Home → the real ETH balance appears.
+6. **Send** → amount/recipient → **Review** (real estimated fee) → **Confirm** → the tx
+   broadcasts; the activity entry carries a real hash — check it on
+   https://sepolia.etherscan.io.
+
+Stay on Sepolia while `DEMO_MODE=false`: the other networks are real mainnets, and a funded
+account there would move real funds.
 
 ## Security model
 
@@ -108,6 +132,7 @@ src/
 - **No screen in the design yet** (tappable but inert): swap settings, hardware wallet, custom network, Swissquote account linking.
 - **Review swap** – the design links "Review swap" to the Review screen; it is adapted for swaps (pay/receive, minimum received after slippage, fees). Quotes expire after 30 s and must be refreshed before confirming.
 - **Transaction details** – not drawn; tapping an Activity row opens type, date, account, full counterparty address (copyable), swap breakdown, network fee, failure reason and an explorer link when a hash exists.
+- **Live-mode balances are ETH-only** – `usePortfolio`/`useToken` (`src/features/market/queries.ts`) read a real native balance when `DEMO_MODE=false`, but WBTC/USDC/LINK stay demo-only (no per-chain testnet token addresses wired up).
 - **Swap execution** needs a DEX aggregator; in demo mode a confirmed swap is recorded locally, and in live mode it is disabled.
-- **Market data** – live by default from Swissquote's own services: real-time quotes for every listed crypto (55, catalogued in `src/features/market/catalog.ts`) plus USD/EUR/GBP→CHF rates in one request per minute (`src/services/swissquote/quoteApi.ts`), and daily history (`chartApi.ts`), converted to CHF with Swissquote's USD/CHF rate of each day. Explore lists all of them; the wallet itself holds Ethereum-network tokens (ETH, WBTC, USDC, LINK), so other assets show prices and charts but no Send/Swap/Receive, and Buy offers wallet tokens only. WBTC isn't listed by Swissquote and is priced as BTC (1:1 backed). History is daily, so 1D shows previous close → latest; `EXPO_PUBLIC_MARKET_DATA=kraken` gives intraday charts for the wallet tokens. Balances and activity are still demo data. A missing price shows "—", never a guess. These are internal, undocumented endpoints: agree a contract with the owning Swissquote team before release, and run `npm run check:prices` (live check of every catalogued asset, FX and history) in CI. The web preview reaches them through a dev-only proxy in `metro.config.js` (no CORS).
-- **Recommended next steps** – recovery-phrase confirmation quiz, EIP-1559 fee estimation in the Review UI (live mode), token transfers (ERC-20), transaction simulation, and a third-party security audit before handling real funds.
+- **Market data** – live by default from Swissquote's own services: real-time quotes for every listed crypto (55, catalogued in `src/features/market/catalog.ts`) plus USD/EUR/GBP→CHF rates in one request per minute (`src/services/swissquote/quoteApi.ts`), and daily history (`chartApi.ts`), converted to CHF with Swissquote's USD/CHF rate of each day. Explore lists all of them; the wallet itself holds Ethereum-network tokens (ETH, WBTC, USDC, LINK), so other assets show prices and charts but no Send/Swap/Receive, and Buy offers wallet tokens only. WBTC isn't listed by Swissquote and is priced as BTC (1:1 backed). History is daily, so 1D shows previous close → latest; `EXPO_PUBLIC_MARKET_DATA=kraken` gives intraday charts for the wallet tokens. Live-mode wallet balance is real (see above); activity is still demo data. A missing price shows "—", never a guess. These are internal, undocumented endpoints: agree a contract with the owning Swissquote team before release, and run `npm run check:prices` (live check of every catalogued asset, FX and history) in CI. The web preview reaches them through a dev-only proxy in `metro.config.js` (no CORS).
+- **Recommended next steps** – recovery-phrase confirmation quiz, token transfers (ERC-20), transaction simulation, and a third-party security audit before handling real funds.

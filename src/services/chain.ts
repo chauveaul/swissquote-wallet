@@ -1,6 +1,7 @@
 import {
   createPublicClient,
   createWalletClient,
+  formatEther,
   http,
   parseEther,
   type Address,
@@ -16,6 +17,12 @@ const SPEED_MULTIPLIER: Record<FeeSpeed, bigint> = { low: 90n, market: 100n, fas
 
 export function publicClient(networkId: NetworkId) {
   return createPublicClient({ chain: getNetwork(networkId).chain, transport: http(rpcUrl(networkId)) });
+}
+
+/** Reads the real on-chain native balance (ETH, or the network's native token). */
+export async function getNativeBalance(networkId: NetworkId, address: Address) {
+  const wei = await publicClient(networkId).getBalance({ address });
+  return { wei, formatted: formatEther(wei) };
 }
 
 export async function estimateFees(networkId: NetworkId, speed: FeeSpeed) {

@@ -8,10 +8,10 @@ import { AccountAvatar } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { demoQuotes } from '@/features/market/fixtures';
-import { appNow, localActivityId, useLocalActivity, useSpotPrice } from '@/features/market/queries';
+import { appNow, localActivityId, useFeeEstimate, useLocalActivity, useSpotPrice } from '@/features/market/queries';
 import { useFiat } from '@/features/settings/useFiat';
 import type { Contact, FeeSpeed } from '@/features/market/types';
-import { feeFor, parseRecipient, useSendDraft } from '@/features/send/draft';
+import { parseRecipient, useSendDraft } from '@/features/send/draft';
 import { identifyRecipient } from '@/features/send/recipient';
 import { accountColor } from '@/features/wallet/accountColor';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
@@ -46,15 +46,16 @@ export default function Review() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { data: fee } = useFeeEstimate(networkId, speed, ethChf);
+
   const recipient = parseRecipient(to);
-  if (!recipient || !(Number(amount) > 0)) return <Redirect href="/send" />;
+  if (!recipient || !(Number(amount) > 0) || !fee) return <Redirect href="/send" />;
 
   const known = identifyRecipient(recipient, account.index, accounts, contacts);
   // Never confirm a transfer to the sending account itself.
   if (known?.kind === 'self') return <Redirect href="/send" />;
   const toName = known ? (known.kind === 'account' ? `${known.name} (yours)` : known.name) : 'New address';
   const value = Number(amount);
-  const fee = feeFor(speed, ethChf);
   const total = value + fee.eth;
 
   const confirm = async () => {
