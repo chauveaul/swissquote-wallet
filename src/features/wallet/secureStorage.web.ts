@@ -1,19 +1,44 @@
 /**
- * Web has no hardware-backed keystore. This in-memory store exists only so the
- * UI can be previewed in a browser during development; nothing survives a
- * reload. The wallet is not supported on web for real funds.
+ * Web has no hardware-backed keystore. This persists to localStorage so a
+ * wallet survives a reload/tab close during development — it is NOT
+ * encrypted at this layer (only the vault blob's own AES-GCM is) and nothing
+ * here is biometric-gated. The wallet is not supported on web for real funds.
  */
-const memory = new Map<string, string>();
+const PREFIX = 'sqw-dev.';
+
+function read(key: string): string | null {
+  try {
+    return localStorage.getItem(PREFIX + key);
+  } catch {
+    return null;
+  }
+}
+
+function write(key: string, value: string): void {
+  try {
+    localStorage.setItem(PREFIX + key, value);
+  } catch {
+    // Private browsing / storage disabled: falls back to losing state on reload.
+  }
+}
+
+function remove(key: string): void {
+  try {
+    localStorage.removeItem(PREFIX + key);
+  } catch {
+    // ignore
+  }
+}
 
 if (__DEV__) {
-  console.warn('[wallet] Using in-memory secure storage on web — development preview only.');
+  console.warn('[wallet] Using localStorage for secure storage on web — development preview only, not encrypted at rest.');
 }
 
 export const secureStorage = {
-  get: async (key: string) => memory.get(key) ?? null,
-  set: async (key: string, value: string) => void memory.set(key, value),
-  remove: async (key: string) => void memory.delete(key),
-  setProtected: async (key: string, value: string) => void memory.set(key, value),
-  getProtected: async (key: string, _prompt: string) => memory.get(key) ?? null,
-  removeProtected: async (key: string) => void memory.delete(key),
+  get: async (key: string) => read(key),
+  set: async (key: string, value: string) => write(key, value),
+  remove: async (key: string) => remove(key),
+  setProtected: async (key: string, value: string) => write(key, value),
+  getProtected: async (key: string, _prompt: string) => read(key),
+  removeProtected: async (key: string) => remove(key),
 };
