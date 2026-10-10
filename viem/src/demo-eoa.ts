@@ -15,4 +15,6 @@ console.log(
   "Tokens:",
   await getTokenBalances(account.address, [{ symbol: "USDC", address: USDC, decimals: USDC_DECIMALS }]),
 );
+console.log("Private key: ", pk);
 if (!process.env.DEMO_PRIVATE_KEY) console.log("Fund this address, then set DEMO_PRIVATE_KEY=" + pk);
+console.log(account.publicKey);
