@@ -31,11 +31,17 @@ export type AuditEntry = {
 
 type Data = { customers: Customer[]; auditLog: AuditEntry[]; processedTxHashes: string[] };
 
-/** Seeded fake customers. PINs are a fixed demo value — never do this for real. */
+/**
+ * Seeded fake customers. PINs are a fixed demo value — never do this for
+ * real. Balances start at 0: this ledger represents only what's actually
+ * moved through the wallet, not a pre-existing brokerage balance, so a
+ * deposit/withdraw's effect is visible directly (0 -> 28) instead of
+ * buried in an arbitrary starting number (5000 -> 5028).
+ */
 const SEED: Customer[] = [
-  { id: 'SQ-1001', name: 'Alex Müller', accountNumber: '1001', pin: '0000', chfBalance: 5000, linkedAddress: null, linkedAt: null },
-  { id: 'SQ-1002', name: 'Jamie Dubois', accountNumber: '1002', pin: '0000', chfBalance: 12000, linkedAddress: null, linkedAt: null },
-  { id: 'SQ-1003', name: 'Sam Keller', accountNumber: '1003', pin: '0000', chfBalance: 250, linkedAddress: null, linkedAt: null },
+  { id: 'SQ-1001', name: 'Alex Müller', accountNumber: '1001', pin: '0000', chfBalance: 0, linkedAddress: null, linkedAt: null },
+  { id: 'SQ-1002', name: 'Jamie Dubois', accountNumber: '1002', pin: '0000', chfBalance: 0, linkedAddress: null, linkedAt: null },
+  { id: 'SQ-1003', name: 'Sam Keller', accountNumber: '1003', pin: '0000', chfBalance: 0, linkedAddress: null, linkedAt: null },
 ];
 
 function load(): Data {
