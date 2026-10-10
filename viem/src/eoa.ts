@@ -23,6 +23,7 @@ export function walletFromKey(privateKey: Hex) {
 
 // ---- Validate BEFORE signing ------------------------------------------------
 export async function validateUsdcTransfer(from: Address, to: Address, amount: string) {
+  if (!USDC) throw new Error("USDC address not configured for this chain (set USDC_ADDRESS in .env)");
   const errors: string[] = [];
   if (!isAddress(to)) errors.push("Invalid recipient address");
   const value = parseUnits(amount, USDC_DECIMALS);
@@ -57,6 +58,7 @@ export async function sendEth(privateKey: Hex, to: Address, amountEth: string) {
 
 // ---- Send USDC --------------------------------------------------------------
 export async function sendUsdc(privateKey: Hex, to: Address, amount: string) {
+  if (!USDC) throw new Error("USDC address not configured for this chain (set USDC_ADDRESS in .env)");
   const { client, account } = walletFromKey(privateKey);
   const check = await validateUsdcTransfer(account.address, to, amount);
   if (!check.ok) throw new Error(check.errors.join("; "));

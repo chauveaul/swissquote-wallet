@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "demo:eoa": "tsx src/demo-eoa.ts"
+    "demo:eoa": "tsx --env-file=.env src/demo-eoa.ts",
+    "demo:send": "tsx --env-file=.env src/demo-send.ts"
   },
   "dependencies": {
     "viem": "^2.21.0"

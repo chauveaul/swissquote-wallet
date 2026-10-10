@@ -11,10 +11,14 @@ const account = privateKeyToAccount(pk);
 
 console.log("Address:", account.address);
 console.log("ETH:", (await getNativeBalance(account.address)).formatted);
-console.log(
-  "Tokens:",
-  await getTokenBalances(account.address, [{ symbol: "USDC", address: USDC, decimals: USDC_DECIMALS }]),
-);
+if (USDC) {
+  console.log(
+    "Tokens:",
+    await getTokenBalances(account.address, [{ symbol: "USDC", address: USDC, decimals: USDC_DECIMALS }]),
+  );
+} else {
+  console.log("Tokens: USDC_ADDRESS not set in .env, skipping USDC balance");
+}
 console.log("Private key: ", pk);
 if (!process.env.DEMO_PRIVATE_KEY) console.log("Fund this address, then set DEMO_PRIVATE_KEY=" + pk);
 console.log(account.publicKey);
