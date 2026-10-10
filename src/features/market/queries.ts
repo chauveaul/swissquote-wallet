@@ -5,7 +5,7 @@ import { create } from 'zustand';
 
 import { useNetworkId, useWallet } from '@/features/wallet/store';
 import { DEMO_MODE, MARKET_DATA } from '@/lib/config';
-import type { NetworkId } from '@/lib/networks';
+import { getNetwork, networks, type NetworkId } from '@/lib/networks';
 import { estimateFees, getNativeBalance, publicClient } from '@/services/chain';
 import { colors } from '@/theme/tokens';
 
@@ -138,6 +138,52 @@ export function usePortfolio(accountIndex: number) {
 
   if (DEMO_MODE) return { data: demoData, isRefetching: quotes.isRefetching, refetch, delayed: quotes.delayed };
   return { data: live.data ?? EMPTY_PORTFOLIO, isRefetching: live.isRefetching || quotes.isRefetching, refetch, delayed: quotes.delayed };
+}
+
+export type NetworkBalance = { networkId: NetworkId; name: string; mark: string; amount: number; valueChf: number | null };
+
+/**
+ * Shapes raw per-network wei balances (already fetched) into display rows,
+ * priced at `ethChf` (null = unknown, so valueChf stays null rather than 0 —
+ * same "unknown vs. zero" convention as `TokenHolding.priceAvailable`).
+ */
+export function buildNetworkBalances(
+  balances: readonly { networkId: NetworkId; wei: bigint }[],
+  ethChf: number | null,
+): NetworkBalance[] {
+  return balances.map(({ networkId, wei }) => {
+    const network = getNetwork(networkId);
+    const amount = toEther(wei);
+    return { networkId, name: network.name, mark: network.mark, amount, valueChf: ethChf === null ? null : amount * ethChf };
+  });
+}
+
+/**
+ * This account's native balance on every supported network — the multi-chain
+ * balance view (Accounts & networks). One account, one address, read across
+ * every EVM chain it's already valid on; no bridging, just aggregation.
+ * Demo mode has nothing meaningful to show here, so it's disabled.
+ */
+export function useNetworkBalances(accountIndex: number) {
+  const address = useWallet((s) => s.meta?.accounts.find((a) => a.index === accountIndex)?.address);
+  const ethChf = useQuotes().bySymbol.get('ETH')?.price ?? null;
+
+  return useQuery({
+    queryKey: ['networkBalances', accountIndex, address, ethChf],
+    enabled: !DEMO_MODE && !!address,
+    queryFn: async () => {
+      const balances = await Promise.all(
+        networks.map(async (n) => ({
+          networkId: n.id,
+          // One slow/unreachable RPC shouldn't blank out the others.
+          wei: await getNativeBalance(n.id, address!).then((b) => b.wei, () => 0n),
+        })),
+      );
+      return buildNetworkBalances(balances, ethChf);
+    },
+    staleTime: 15_000,
+    refetchInterval: 20_000,
+  });
 }
 
 /**

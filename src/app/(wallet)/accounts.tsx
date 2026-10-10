@@ -7,11 +7,11 @@ import { Icon } from '@/components/Icon';
 import { AccountAvatar, TokenMark } from '@/components/Marks';
 import { Screen } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
-import { usePortfolio } from '@/features/market/queries';
+import { usePortfolio, useNetworkBalances } from '@/features/market/queries';
 import { useFiat } from '@/features/settings/useFiat';
 import { accountColor } from '@/features/wallet/accountColor';
 import { useWallet, type AccountMeta } from '@/features/wallet/store';
-import { truncateAddress } from '@/lib/format';
+import { formatNumber, truncateAddress } from '@/lib/format';
 import { networks } from '@/lib/networks';
 import { colors } from '@/theme/tokens';
 
@@ -51,11 +51,16 @@ function AccountRow({ account, selected, onPress }: { account: AccountMeta; sele
 
 /** 09 Accounts & networks */
 export default function Accounts() {
+  const fiat = useFiat();
   const meta = useWallet((s) => s.meta);
   const selectAccount = useWallet((s) => s.selectAccount);
   const selectNetwork = useWallet((s) => s.selectNetwork);
   const addAccount = useWallet((s) => s.addAccount);
   const [adding, setAdding] = useState(false);
+  // The selected account's balance on every network at once — see how a
+  // single address holds value across chains without switching.
+  const { data: networkBalances } = useNetworkBalances(meta?.selectedIndex ?? 0);
+  const balanceByNetwork = new Map((networkBalances ?? []).map((b) => [b.networkId, b]));
 
   // Signed out: this screen is about to unmount.
   if (!meta) return null;
@@ -121,12 +126,15 @@ export default function Accounts() {
       <View accessibilityRole="radiogroup" accessibilityLabel="Networks">
         {networks.map((n) => {
           const on = n.id === meta.networkId;
+          const bal = balanceByNetwork.get(n.id);
           return (
             <Pressable
               key={n.id}
               accessibilityRole="radio"
               accessibilityState={{ checked: on }}
-              accessibilityLabel={n.name}
+              accessibilityLabel={
+                bal ? `${n.name}, ${formatNumber(bal.amount, 4)} ETH, ${fiat.format(bal.valueChf)}` : n.name
+              }
               onPress={() => selectNetwork(n.id)}
               style={[styles.row, styles.networkRow]}
             >
@@ -134,6 +142,16 @@ export default function Accounts() {
               <Text size={15} weight={600} style={styles.flex}>
                 {n.name}
               </Text>
+              {bal ? (
+                <View style={styles.networkBalance}>
+                  <Text size={14} weight={600}>
+                    {formatNumber(bal.amount, 4)} ETH
+                  </Text>
+                  <Text size={12} color={colors.textMuted}>
+                    {fiat.format(bal.valueChf)}
+                  </Text>
+                </View>
+              ) : null}
               {on ? <Icon name="check" size={20} strokeWidth={2.4} /> : null}
             </Pressable>
           );
@@ -166,6 +184,7 @@ const styles = StyleSheet.create({
   accountActions: { flexDirection: 'row', gap: 8, paddingTop: 4, paddingHorizontal: 24, paddingBottom: 8 },
   band: { height: 8, backgroundColor: colors.surfaceMuted },
   networkRow: { minHeight: 52, backgroundColor: colors.surface },
+  networkBalance: { alignItems: 'flex-end', gap: 2 },
   addNetwork: {
     marginTop: 4,
     marginHorizontal: 24,
