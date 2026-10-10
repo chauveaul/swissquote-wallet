@@ -35,12 +35,21 @@ export class WrongPasswordError extends Error {
   }
 }
 
+/**
+ * Max time scrypt computes before handing the JS thread back to React Native.
+ * Needs the `@noble/hashes` patch (patches/): unpatched, noble only yields to
+ * the microtask queue, so the app freezes for the whole derivation and
+ * keyboard/layout changes made meanwhile get lost.
+ */
+const KDF_YIELD_MS = 30;
+
 export async function deriveKey(password: string, kdf: KdfParams): Promise<Uint8Array> {
   return scryptAsync(password.normalize('NFKC'), hexToBytes(kdf.salt), {
     N: kdf.N,
     r: kdf.r,
     p: kdf.p,
     dkLen: 32,
+    asyncTick: KDF_YIELD_MS,
   });
 }
 

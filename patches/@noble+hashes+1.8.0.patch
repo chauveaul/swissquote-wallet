@@ -1,0 +1,26 @@
+diff --git a/node_modules/@noble/hashes/esm/utils.js b/node_modules/@noble/hashes/esm/utils.js
+index 9614c8e..626b706 100644
+--- a/node_modules/@noble/hashes/esm/utils.js
++++ b/node_modules/@noble/hashes/esm/utils.js
+@@ -163,7 +163,7 @@ export function hexToBytes(hex) {
+  * Call of async fn will return Promise, which will be fullfiled only on
+  * next scheduler queue processing step and this is exactly what we need.
+  */
+-export const nextTick = async () => { };
++export const nextTick = () => new Promise((resolve) => setTimeout(resolve, 0)); // patched: yield to the event loop (React Native), not just the microtask queue
+ /** Returns control to thread each 'tick' ms to avoid blocking. */
+ export async function asyncLoop(iters, tick, cb) {
+     let ts = Date.now();
+diff --git a/node_modules/@noble/hashes/utils.js b/node_modules/@noble/hashes/utils.js
+index aed9199..d6eba89 100644
+--- a/node_modules/@noble/hashes/utils.js
++++ b/node_modules/@noble/hashes/utils.js
+@@ -193,7 +193,7 @@ function hexToBytes(hex) {
+  * Call of async fn will return Promise, which will be fullfiled only on
+  * next scheduler queue processing step and this is exactly what we need.
+  */
+-const nextTick = async () => { };
++const nextTick = () => new Promise((resolve) => setTimeout(resolve, 0)); // patched: yield to the event loop (React Native), not just the microtask queue
+ exports.nextTick = nextTick;
+ /** Returns control to thread each 'tick' ms to avoid blocking. */
+ async function asyncLoop(iters, tick, cb) {
