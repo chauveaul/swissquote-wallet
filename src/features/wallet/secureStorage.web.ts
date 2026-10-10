@@ -2,15 +2,18 @@
  * Web has no hardware-backed keystore. This persists to localStorage so a
  * wallet survives a reload/tab close during development — it is NOT
  * encrypted at this layer (only the vault blob's own AES-GCM is) and nothing
- * here is biometric-gated. The wallet is not supported on web for real funds.
+ * here is biometric-gated. When localStorage is unavailable (private browsing,
+ * storage disabled) it falls back to memory, losing state on reload. The
+ * wallet is not supported on web for real funds.
  */
 const PREFIX = 'sqw-dev.';
+const memory = new Map<string, string>();
 
 function read(key: string): string | null {
   try {
-    return localStorage.getItem(PREFIX + key);
+    return localStorage.getItem(PREFIX + key) ?? memory.get(key) ?? null;
   } catch {
-    return null;
+    return memory.get(key) ?? null;
   }
 }
 
@@ -18,11 +21,12 @@ function write(key: string, value: string): void {
   try {
     localStorage.setItem(PREFIX + key, value);
   } catch {
-    // Private browsing / storage disabled: falls back to losing state on reload.
+    memory.set(key, value);
   }
 }
 
 function remove(key: string): void {
+  memory.delete(key);
   try {
     localStorage.removeItem(PREFIX + key);
   } catch {

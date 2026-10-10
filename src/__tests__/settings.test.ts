@@ -2,6 +2,9 @@ import { useWallet } from '@/features/wallet/store';
 import { formatAutoLock } from '@/lib/autoLock';
 import { getCurrency } from '@/lib/currency';
 
+// These cover the demo defaults (sample contacts and connected sites); live mode is the app default.
+jest.mock('@/lib/config', () => ({ ...jest.requireActual('@/lib/config'), DEMO_MODE: true }));
+
 jest.mock('@/features/wallet/secureStorage', () => {
   const memory = new Map<string, string>();
   return {

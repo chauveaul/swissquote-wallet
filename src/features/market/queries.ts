@@ -1,12 +1,12 @@
-import { formatEther, type Address } from 'viem';
+import { formatEther, type Address, type Hash } from 'viem';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { create } from 'zustand';
 
 import { useNetworkId, useWallet } from '@/features/wallet/store';
 import { DEMO_MODE, MARKET_DATA } from '@/lib/config';
 import type { NetworkId } from '@/lib/networks';
-import { estimateFees, getNativeBalance } from '@/services/chain';
+import { estimateFees, getNativeBalance, publicClient } from '@/services/chain';
 import { colors } from '@/theme/tokens';
 
 import { assetName, CRYPTO_CATALOG, tokenColor, tokenMark, WALLET_TOKENS } from './catalog';
@@ -66,6 +66,11 @@ export const PRICES_LIVE = MARKET_DATA !== 'demo';
 
 const EMPTY_PORTFOLIO: Portfolio = { tokens: [], totalChf: 0, changeTodayChf: 0, changeTodayPct: 0 };
 
+/** bigint wei → number ETH, exact to 1e-9 ETH (up to ~9 million ETH). */
+export function toEther(wei: bigint): number {
+  return Number(wei / 1_000_000_000n) / 1_000_000_000;
+}
+
 /** Holdings valued at the latest prices. Demo-mode balances only. */
 export function valuePortfolio(base: Portfolio, quotes: Map<TokenSymbol, Quote | null>): Portfolio {
   const tokens: TokenHolding[] = base.tokens.map((t) => {
@@ -88,8 +93,8 @@ export function valuePortfolio(base: Portfolio, quotes: Map<TokenSymbol, Quote |
  * demo-only.
  */
 async function liveNativePortfolio(networkId: NetworkId, address: Address, ethChf: number | null): Promise<Portfolio> {
-  const { formatted } = await getNativeBalance(networkId, address);
-  const amount = Number(formatted);
+  const { wei } = await getNativeBalance(networkId, address);
+  const amount = toEther(wei);
   if (amount <= 0) return EMPTY_PORTFOLIO;
   const valueChf = amount * (ethChf ?? demoQuotes.ethChf);
   const eth: TokenHolding = {
@@ -117,7 +122,9 @@ export function usePortfolio(accountIndex: number) {
     queryKey: ['portfolio', accountIndex, networkId, ethChf],
     queryFn: () => (address ? liveNativePortfolio(networkId, address, ethChf) : Promise.resolve(EMPTY_PORTFOLIO)),
     enabled: !DEMO_MODE,
-    staleTime: 30_000,
+    staleTime: 5_000,
+    // Poll so faucet deposits and confirmations appear without a refresh.
+    refetchInterval: 10_000,
   });
 
   // Demo holdings belong to the first account; derived accounts start empty.
@@ -201,18 +208,59 @@ let localSeq = 0;
 /** Id for a locally submitted transaction that has no hash yet. */
 export const localActivityId = () => `local-${Date.now()}-${localSeq++}`;
 
-/** Locally submitted transactions, shown as pending until indexed. */
-type LocalActivity = { items: ActivityItem[]; add: (item: ActivityItem) => void };
+/** Locally submitted transactions; live mode flips them once the chain confirms. */
+type LocalActivity = {
+  items: ActivityItem[];
+  add: (item: ActivityItem) => void;
+  update: (id: string, patch: Partial<ActivityItem>) => void;
+};
 
 export const useLocalActivity = create<LocalActivity>((set) => ({
   items: [],
   add: (item) => set((s) => ({ items: [item, ...s.items] })),
+  update: (id, patch) => set((s) => ({ items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) })),
 }));
 
+/**
+ * Live mode only: poll for receipts of pending sends and flip them to
+ * confirmed/failed. No-op in demo mode.
+ */
+function useActivityConfirmations() {
+  const items = useLocalActivity((s) => s.items);
+  const update = useLocalActivity((s) => s.update);
+
+  useEffect(() => {
+    if (DEMO_MODE) return;
+    const pending = items.filter((i) => i.status === 'pending' && i.hash);
+    if (pending.length === 0) return;
+
+    let active = true;
+    const tick = async () => {
+      for (const item of pending) {
+        if (!active) return;
+        try {
+          const receipt = await publicClient(item.networkId).getTransactionReceipt({ hash: item.hash as Hash });
+          update(item.id, { status: receipt.status === 'success' ? 'confirmed' : 'failed', eta: undefined });
+        } catch {
+          // No receipt yet — still pending.
+        }
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 10_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [items, update]);
+}
+
 export function useActivity() {
+  useActivityConfirmations();
   const local = useLocalActivity((s) => s.items);
   const remote = useQuery({ queryKey: ['activity'], queryFn: async () => demoActivity });
-  return { ...remote, data: [...local, ...(remote.data ?? [])] };
+  // Live mode shows only real (locally submitted) transactions.
+  return { ...remote, data: DEMO_MODE ? [...local, ...(remote.data ?? [])] : local };
 }
 
 export type ActivityGroup = { label: string; items: ActivityItem[] };

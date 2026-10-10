@@ -3,9 +3,11 @@
  * simulates broadcasting instead of sending real transactions. Key generation,
  * encryption, unlock and address derivation are always real.
  *
- * Set `EXPO_PUBLIC_DEMO_MODE=false` to broadcast real transactions via RPC.
+ * Live mode is the default in this checkout: it reads real balances, prices
+ * and fees and broadcasts real transactions via RPC. Set
+ * `EXPO_PUBLIC_DEMO_MODE=true` to fall back to the fixtures.
  */
-export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE !== 'false';
+export const DEMO_MODE = (process.env.EXPO_PUBLIC_DEMO_MODE ?? 'false') === 'true';
 
 /**
  * Price source, independent of DEMO_MODE so prices can be live while balances

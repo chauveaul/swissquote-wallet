@@ -125,6 +125,8 @@ export const useWallet = create<WalletState>((set, get) => {
       vault = parseVault(rawVault);
       // Wallets created before a setting existed get its default.
       const stored = JSON.parse(rawMeta) as Partial<WalletMeta>;
+      // Sepolia was briefly stored as `sep` on another branch.
+      if ((stored.networkId as string) === 'sep') stored.networkId = 'sepolia';
       set({ status: 'locked', meta: { ...defaultPreferences(), ...stored } as WalletMeta });
     },
 
@@ -148,7 +150,8 @@ export const useWallet = create<WalletState>((set, get) => {
       const meta: WalletMeta = {
         accounts: [{ index: 0, name: 'Account 1', address: deriveAddress(phrase, 0) }],
         selectedIndex: 0,
-        networkId: 'eth',
+        // Live mode broadcasts real transactions: new wallets start on the testnet.
+        networkId: 'sepolia',
         biometrics: false,
         ...defaultPreferences(),
       };

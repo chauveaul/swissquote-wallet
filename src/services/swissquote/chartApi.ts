@@ -22,7 +22,10 @@ export { MarketDataError };
 export type { Candle, CandleSeries };
 
 const TIMEOUT_MS = 8_000;
-const PATH = '/securities-retail-chart-plugin/api/chart/trading-view/histo';
+const PATH = '/securities-retail-chart-plugin/api/chart/trading-view';
+
+/** `histo`: daily candles for any window; `intraday`: hourly candles for the last ~4.7 days, whatever `from` is. */
+export type Resolution = 'histo' | 'intraday';
 
 /** Native apps call Swissquote directly; the web preview goes through the dev proxy (no CORS). */
 export function apiBaseUrl(): string {
@@ -55,14 +58,17 @@ export function parseCandleResponse(raw: unknown): CandleSeries {
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
-/** Daily candles (the last one intraday) between two dates, inclusive. */
+/**
+ * Candles between two dates, inclusive: daily (the last one intraday) by
+ * default, hourly with `resolution: 'intraday'`.
+ */
 export async function fetchCandles(
   instrument: Instrument,
   from: Date,
   to: Date,
-  { signal }: { signal?: AbortSignal } = {},
+  { signal, resolution = 'histo' }: { signal?: AbortSignal; resolution?: Resolution } = {},
 ): Promise<CandleSeries> {
-  const url = `${apiBaseUrl()}${PATH}?from=${ymd(from)}&to=${ymd(to)}&countBack=-1`;
+  const url = `${apiBaseUrl()}${PATH}/${resolution}?from=${ymd(from)}&to=${ymd(to)}&countBack=-1`;
   const res = await fetchWithTimeout(
     url,
     {
