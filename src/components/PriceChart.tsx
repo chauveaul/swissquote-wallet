@@ -3,7 +3,7 @@ import { StyleSheet, View, type GestureResponderEvent, type LayoutChangeEvent } 
 import Svg, { Path } from 'react-native-svg';
 
 import type { PricePoint } from '@/features/market/types';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, priceDecimals } from '@/lib/format';
 import { colors, radii } from '@/theme/tokens';
 
 import { Text } from './Text';
@@ -18,6 +18,8 @@ type Props = {
   hover: number | null;
   onHover: (index: number | null) => void;
   accent?: string;
+  /** Currency code shown in the tooltip; `points` are already in this currency. */
+  currency?: string;
   accessibilityLabel: string;
 };
 
@@ -25,7 +27,7 @@ type Props = {
  * Line + area chart with dashed gridlines and a scrub tooltip. Geometry mirrors
  * the design prototype (8% vertical padding, gridlines at min / mid / max).
  */
-export function PriceChart({ points, hover, onHover, accent = colors.accent, accessibilityLabel }: Props) {
+export function PriceChart({ points, hover, onHover, accent = colors.accent, currency = 'CHF', accessibilityLabel }: Props) {
   const [width, setWidth] = useState(342);
   const n = points.length;
 
@@ -40,11 +42,12 @@ export function PriceChart({ points, hover, onHover, accent = colors.accent, acc
     const y = (v: number) => PAD_TOP + (1 - (v - min) / (max - min)) * (HEIGHT - PAD_TOP - PAD_BOTTOM);
     const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ');
     const area = `${line} L${width} ${HEIGHT} L0 ${HEIGHT} Z`;
+    const decimals = priceDecimals(max);
     const grid = [0, 0.5, 1].map((f) => {
       const v = min + padV + f * (max - min - 2 * padV);
-      return { y: y(v), label: formatNumber(v) };
+      return { y: y(v), label: formatNumber(v, decimals) };
     });
-    return { x, y, line, area, grid };
+    return { x, y, line, area, grid, decimals };
   }, [points, n, width]);
 
   const indexAt = (e: GestureResponderEvent) => {
@@ -95,7 +98,7 @@ export function PriceChart({ points, hover, onHover, accent = colors.accent, acc
               {points[active]!.label}
             </Text>
             <Text size={14} weight={700} color={colors.surface}>
-              CHF {formatNumber(points[active]!.value)}
+              {currency} {formatNumber(points[active]!.value, geo.decimals)}
             </Text>
           </View>
         </>

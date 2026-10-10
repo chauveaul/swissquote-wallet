@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   HankenGrotesk_400Regular,
   HankenGrotesk_500Medium,
@@ -6,19 +6,24 @@ import {
   HankenGrotesk_700Bold,
 } from '@expo-google-fonts/hanken-grotesk';
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { KeyboardProvider, KeyboardToolbar } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useWallet } from '@/features/wallet/store';
 import { useAutoLock } from '@/features/wallet/useAutoLock';
+import { persistOptions, queryClient } from '@/lib/queryClient';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
-const queryClient = new QueryClient();
+const KEYBOARD_TOOLBAR_THEME = {
+  light: { primary: colors.ink, disabled: colors.borderInput, background: colors.surfaceMuted, ripple: colors.border },
+  dark: { primary: colors.surface, disabled: colors.textMuted, background: colors.dark.field, ripple: colors.dark.border },
+};
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -40,6 +45,17 @@ export default function RootLayout() {
     });
   }, [hydrate]);
 
+  // When a wallet is created or imported, start on Home. Otherwise the router
+  // would restore the last route it remembers (e.g. Sign out from the previous
+  // wallet) as soon as the guards allow it again.
+  const walletGeneration = useWallet((s) => s.walletGeneration);
+  const seenGeneration = useRef(walletGeneration);
+  useEffect(() => {
+    if (walletGeneration === seenGeneration.current) return;
+    seenGeneration.current = walletGeneration;
+    router.replace('/');
+  }, [walletGeneration]);
+
   const ready = (fontsLoaded || fontError) && status !== 'loading';
 
   useEffect(() => {
@@ -50,30 +66,40 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
-          {/* First run: create or import. */}
-          <Stack.Protected guard={status === 'empty'}>
-            <Stack.Screen name="welcome" />
-            <Stack.Screen name="create-phrase" />
-          </Stack.Protected>
+      <KeyboardProvider>
+        <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.surface },
+            }}
+          >
+            {/* First run: create or import. */}
+            <Stack.Protected guard={status === 'empty'}>
+              <Stack.Screen name="welcome" />
+              <Stack.Screen name="create-phrase" />
+            </Stack.Protected>
 
-          {/* Wallet exists but session is locked. */}
-          <Stack.Protected guard={status === 'locked'}>
-            <Stack.Screen name="unlock" options={{ animation: 'fade' }} />
-          </Stack.Protected>
+            {/* Wallet exists but session is locked. */}
+            <Stack.Protected guard={status === 'locked'}>
+              <Stack.Screen name="unlock" options={{ animation: 'fade' }} />
+            </Stack.Protected>
 
-          {/* Restore is reachable from Welcome and from "Forgot password". */}
-          <Stack.Protected guard={status !== 'unlocked'}>
-            <Stack.Screen name="restore" />
-            <Stack.Screen name="set-password" />
-          </Stack.Protected>
+            {/* Restore is reachable from Welcome and from "Forgot password". */}
+            <Stack.Protected guard={status !== 'unlocked'}>
+              <Stack.Screen name="restore" />
+              <Stack.Screen name="set-password" />
+            </Stack.Protected>
 
-          <Stack.Protected guard={status === 'unlocked'}>
-            <Stack.Screen name="(wallet)" options={{ animation: 'fade' }} />
-          </Stack.Protected>
-        </Stack>
-      </QueryClientProvider>
+            <Stack.Protected guard={status === 'unlocked'}>
+              <Stack.Screen name="(wallet)" options={{ animation: 'fade' }} />
+            </Stack.Protected>
+          </Stack>
+          {/* Previous / next / Done above every keyboard, so number pads (which
+              have no return key) can always be closed. */}
+          <KeyboardToolbar theme={KEYBOARD_TOOLBAR_THEME} doneText="Done" />
+        </PersistQueryClientProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

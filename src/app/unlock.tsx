@@ -7,9 +7,10 @@ import { LogoPlaceholder } from '@/components/Marks';
 import { PasswordField } from '@/components/PasswordField';
 import { Screen, Spacer } from '@/components/Screen';
 import { Text } from '@/components/Text';
-import { biometricLabel, getBiometricKind, type BiometricKind } from '@/features/wallet/biometrics';
+import { isBiometricsAvailable } from '@/features/wallet/biometrics';
 import { useWallet } from '@/features/wallet/store';
 import { WrongPasswordError } from '@/features/wallet/vault';
+import { SignOutScreen } from '@/screens/SignOutScreen';
 import { colors } from '@/theme/tokens';
 
 /** 03 Unlock */
@@ -21,22 +22,21 @@ export default function Unlock() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [bioKind, setBioKind] = useState<BiometricKind>(null);
-
-  const bioName = biometricLabel(bioKind);
+  const [hasBiometrics, setHasBiometrics] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const tryBiometrics = useCallback(async () => {
     setError(null);
     try {
       const ok = await unlockWithBiometrics('Unlock your wallet');
-      if (!ok && !biometricsEnabled) setError(`${bioName} isn’t set up for this wallet. Use your password.`);
+      if (!ok && !biometricsEnabled) setError('Biometric unlock isn’t set up for this wallet. Use your password.');
     } catch {
-      setError(`${bioName} could not unlock the wallet. Use your password.`);
+      setError('Biometrics could not unlock the wallet. Use your password.');
     }
-  }, [unlockWithBiometrics, biometricsEnabled, bioName]);
+  }, [unlockWithBiometrics, biometricsEnabled]);
 
   useEffect(() => {
-    getBiometricKind().then(setBioKind).catch(() => setBioKind(null));
+    isBiometricsAvailable().then(setHasBiometrics).catch(() => setHasBiometrics(false));
   }, []);
 
   // Offer biometrics straight away, like the system unlock. Failures are
@@ -58,6 +58,8 @@ export default function Unlock() {
       setBusy(false);
     }
   };
+
+  if (signingOut) return <SignOutScreen onCancel={() => setSigningOut(false)} />;
 
   return (
     <Screen background={colors.dark.background} statusBar="light" paddingTop={72} gap={32}>
@@ -91,11 +93,11 @@ export default function Unlock() {
 
       <View style={styles.actions}>
         <Button label="Unlock" variant="inverse" onPress={submit} loading={busy} disabled={!password} />
-        {bioKind ? (
+        {hasBiometrics ? (
           <Button
-            label={`Use ${bioName}`}
+            label="Use biometrics"
             variant="outlineDark"
-            icon="faceId"
+            icon="biometrics"
             gap={10}
             onPress={tryBiometrics}
           />
@@ -103,6 +105,11 @@ export default function Unlock() {
         <Pressable accessibilityRole="link" onPress={() => router.push('/restore')} style={styles.forgot}>
           <Text size={14} color={colors.surface} style={styles.underline}>
             Forgot password? Restore with recovery phrase
+          </Text>
+        </Pressable>
+        <Pressable accessibilityRole="link" onPress={() => setSigningOut(true)} style={styles.forgot}>
+          <Text size={14} color={colors.surface} style={styles.underline}>
+            Sign out and use a different wallet
           </Text>
         </Pressable>
       </View>

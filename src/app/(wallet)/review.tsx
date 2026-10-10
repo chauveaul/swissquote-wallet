@@ -8,14 +8,16 @@ import { AccountAvatar } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { demoQuotes } from '@/features/market/fixtures';
-import { appNow, localActivityId, useLocalActivity } from '@/features/market/queries';
-import type { FeeSpeed } from '@/features/market/types';
-import { feeFor, findContact, parseRecipient, useSendDraft } from '@/features/send/draft';
+import { appNow, localActivityId, useLocalActivity, useSpotPrice } from '@/features/market/queries';
+import { useFiat } from '@/features/settings/useFiat';
+import type { Contact, FeeSpeed } from '@/features/market/types';
+import { feeFor, parseRecipient, useSendDraft } from '@/features/send/draft';
+import { identifyRecipient } from '@/features/send/recipient';
 import { accountColor } from '@/features/wallet/accountColor';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
-import { useNetworkId, useSelectedAccount, useWallet } from '@/features/wallet/store';
+import { useNetworkId, useSelectedAccount, useWallet, type AccountMeta } from '@/features/wallet/store';
 import { DEMO_MODE } from '@/lib/config';
-import { formatChf, formatNumber, truncateAddress } from '@/lib/format';
+import { formatNumber, truncateAddress } from '@/lib/format';
 import { getNetwork } from '@/lib/networks';
 import { sendNative } from '@/services/chain';
 import { colors, radii } from '@/theme/tokens';
@@ -27,11 +29,18 @@ const SPEEDS: { id: FeeSpeed; label: string }[] = [
 ];
 
 /** 06 Review transaction */
+const NO_CONTACTS: Contact[] = [];
+const NO_ACCOUNTS: AccountMeta[] = [];
+
 export default function Review() {
+  const fiat = useFiat();
   const account = useSelectedAccount();
   const networkId = useNetworkId();
   const network = getNetwork(networkId);
   const getSigner = useWallet((s) => s.getSigner);
+  const contacts = useWallet((s) => s.meta?.contacts ?? NO_CONTACTS);
+  const ethChf = useSpotPrice('ETH');
+  const accounts = useWallet((s) => s.meta?.accounts ?? NO_ACCOUNTS);
   const addActivity = useLocalActivity((s) => s.add);
   const { to, amount, speed, setSpeed, reset } = useSendDraft();
   const [busy, setBusy] = useState(false);
@@ -40,9 +49,12 @@ export default function Review() {
   const recipient = parseRecipient(to);
   if (!recipient || !(Number(amount) > 0)) return <Redirect href="/send" />;
 
-  const contact = findContact(recipient);
+  const known = identifyRecipient(recipient, account.index, accounts, contacts);
+  // Never confirm a transfer to the sending account itself.
+  if (known?.kind === 'self') return <Redirect href="/send" />;
+  const toName = known ? (known.kind === 'account' ? `${known.name} (yours)` : known.name) : 'New address';
   const value = Number(amount);
-  const fee = feeFor(speed);
+  const fee = feeFor(speed, ethChf);
   const total = value + fee.eth;
 
   const confirm = async () => {
@@ -62,9 +74,13 @@ export default function Review() {
         status: 'pending',
         eta: fee.eta,
         amount: `− ${formatNumber(value, 4)} ETH`,
-        fiat: formatChf(value * demoQuotes.ethChf),
+        valueChf: ethChf === null ? null : value * ethChf,
         timestamp: appNow(),
         hash,
+        accountIndex: account.index,
+        networkId,
+        counterparty: { label: known?.name, address: recipient },
+        fee: { native: `${formatNumber(fee.eth, 5)} ETH`, chf: fee.chf },
       });
       reset();
       router.dismissTo('/activity');
@@ -84,7 +100,7 @@ export default function Review() {
           {formatNumber(value, 4)} ETH
         </Text>
         <Text size={15} color={colors.textSecondary}>
-          ≈ {formatChf(value * demoQuotes.ethChf)}
+          ≈ {fiat.format(ethChf === null ? null : value * ethChf)}
         </Text>
       </View>
 
@@ -104,9 +120,9 @@ export default function Review() {
           <Text size={14} color={colors.textSecondary}>
             To
           </Text>
-          <View style={styles.toValue} accessible accessibilityLabel={`To ${contact?.name ?? 'new address'}, ${recipient}`}>
+          <View style={styles.toValue} accessible accessibilityLabel={`To ${toName}, ${recipient}`}>
             <Text size={14} weight={600}>
-              {contact?.name ?? 'New address'}
+              {toName}
             </Text>
             <Text mono size={12} color={colors.textMuted}>
               {truncateAddress(recipient)}
@@ -127,7 +143,7 @@ export default function Review() {
         <View style={styles.feeHeader}>
           <Overline>Network fee</Overline>
           <Text size={14} weight={600}>
-            {formatNumber(fee.eth, 5)} ETH · {formatChf(fee.chf)}
+            {formatNumber(fee.eth, 5)} ETH · {fiat.format(fee.chf)}
           </Text>
         </View>
         <View accessibilityRole="radiogroup" accessibilityLabel="Fee speed" style={styles.speeds}>
@@ -160,7 +176,7 @@ export default function Review() {
             {formatNumber(total, 5)} ETH
           </Text>
           <Text size={13} color={colors.textSecondary}>
-            ≈ {formatChf(total * demoQuotes.ethChf)}
+            ≈ {fiat.format(ethChf === null ? null : total * ethChf)}
           </Text>
         </View>
       </View>

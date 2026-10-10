@@ -2,12 +2,11 @@ import { useEffect, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
 import * as ScreenCapture from 'expo-screen-capture';
 
-import { AUTO_LOCK_MS } from '@/lib/config';
-
 import { useWallet } from './store';
 
 /**
- * Locks the wallet after it has spent `AUTO_LOCK_MS` in the background, and
+ * Locks the wallet after it has spent the user's auto-lock delay (Settings →
+ * Biometrics & auto-lock) in the background, and
  * blurs the iOS app-switcher snapshot while unlocked so balances and phrases
  * don't leak into the task switcher.
  */
@@ -33,7 +32,8 @@ export function useAutoLock() {
       } else if (next === 'active' && backgroundedAt.current !== null) {
         const away = Date.now() - backgroundedAt.current;
         backgroundedAt.current = null;
-        if (away >= AUTO_LOCK_MS && useWallet.getState().status === 'unlocked') lock();
+        const delay = useWallet.getState().meta?.autoLockMs ?? 60_000;
+        if (away >= delay && useWallet.getState().status === 'unlocked') lock();
       }
     });
     return () => sub.remove();

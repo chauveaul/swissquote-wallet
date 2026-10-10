@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { useMemo, useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { BlurTargetView, BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 
 import { Button } from '@/components/Button';
@@ -12,6 +12,7 @@ import { Overline, Text } from '@/components/Text';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
 import { useWallet } from '@/features/wallet/store';
 import { usePreventScreenshots } from '@/features/wallet/usePreventScreenshots';
+import { BackupExportScreen } from '@/screens/BackupExportScreen';
 import { colors, fonts, radii } from '@/theme/tokens';
 
 type Props = { mode: 'create' | 'reveal' };
@@ -26,6 +27,9 @@ export function RecoveryPhraseScreen({ mode }: Props) {
   const revealMnemonic = useWallet((s) => s.revealMnemonic);
   const [phrase, setPhrase] = useState<string | null>(null);
   const [needsReveal, setNeedsReveal] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [backedUp, setBackedUp] = useState(false);
+  const blurTarget = useRef<View | null>(null);
 
   // The real words never enter the view tree until the user asks to see them.
   const words = useMemo(() => (phrase ? phrase.split(' ') : Array<string>(12).fill(MASK)), [phrase]);
@@ -41,8 +45,16 @@ export function RecoveryPhraseScreen({ mode }: Props) {
     setNeedsReveal(false);
   };
 
+  /** The phrase for the backup file; in reveal mode this needs a fresh presence check. */
+  const phraseForBackup = async () => {
+    if (mode === 'create') return draft;
+    if (phrase) return phrase;
+    const ok = await confirmUserPresence('Back up your secret recovery phrase');
+    return ok ? revealMnemonic() : null;
+  };
+
   const done = () => {
-    if (!revealed) {
+    if (!revealed && !backedUp) {
       setNeedsReveal(true);
       return;
     }
@@ -50,6 +62,20 @@ export function RecoveryPhraseScreen({ mode }: Props) {
     if (mode === 'create') router.push({ pathname: '/set-password', params: { flow: 'create' } });
     else router.back();
   };
+
+  if (exporting) {
+    return (
+      <BackupExportScreen
+        getPhrase={phraseForBackup}
+        onCancel={() => setExporting(false)}
+        onSaved={() => {
+          setBackedUp(true);
+          setNeedsReveal(false);
+          setExporting(false);
+        }}
+      />
+    );
+  }
 
   return (
     <Screen paddingTop={16} gap={24}>
@@ -67,29 +93,33 @@ export function RecoveryPhraseScreen({ mode }: Props) {
       </View>
 
       <View style={styles.phraseBox}>
-        <View
-          style={styles.grid}
-          accessibilityElementsHidden={!revealed}
-          importantForAccessibility={revealed ? 'auto' : 'no-hide-descendants'}
-        >
-          {words.map((word, i) => (
-            <View key={i} style={styles.cell} accessible accessibilityLabel={`Word ${i + 1}: ${word}`}>
-              <Text mono size={14} color={colors.textMuted} style={styles.cellIndex}>
-                {i + 1}
-              </Text>
-              <Text mono size={14} selectable={false}>
-                {word}
-              </Text>
-            </View>
-          ))}
-        </View>
+        {/* Android blurs the contents of this target; the BlurView must sit outside it. */}
+        <BlurTargetView ref={blurTarget} style={styles.phraseContent}>
+          <View
+            style={styles.grid}
+            accessibilityElementsHidden={!revealed}
+            importantForAccessibility={revealed ? 'auto' : 'no-hide-descendants'}
+          >
+            {words.map((word, i) => (
+              <View key={i} style={styles.cell} accessible accessibilityLabel={`Word ${i + 1}: ${word}`}>
+                <Text mono size={14} color={colors.textMuted} style={styles.cellIndex}>
+                  {i + 1}
+                </Text>
+                <Text mono size={14} selectable={false}>
+                  {word}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </BlurTargetView>
 
         {!revealed ? (
           <>
             <BlurView
               intensity={18}
               tint="light"
-              experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+              blurTarget={blurTarget}
+              blurMethod="dimezisBlurViewSdk31Plus"
               style={StyleSheet.absoluteFill}
             />
             <View style={styles.overlay}>
@@ -112,12 +142,23 @@ export function RecoveryPhraseScreen({ mode }: Props) {
 
       <Callout>Never share this phrase. Swissquote staff will never ask for it, by phone, e-mail or chat.</Callout>
 
+      {/* Not in the design: encrypted backup file as an alternative to writing the words down. */}
+      <Button
+        label={backedUp ? 'Backup file saved' : 'Download encrypted backup'}
+        variant="secondary"
+        icon={backedUp ? 'check' : 'download'}
+        iconSize={18}
+        height={48}
+        fontSize={15}
+        onPress={() => setExporting(true)}
+      />
+
       <Spacer />
 
       <View style={styles.footer}>
         {needsReveal ? (
           <Text accessibilityRole="alert" size={13} weight={600} color={colors.accentText} align="center">
-            Reveal your phrase and write it down before continuing.
+            Write down your phrase or download a backup file before continuing.
           </Text>
         ) : null}
         <Button label={mode === 'create' ? 'I’ve written it down' : 'Done'} onPress={done} />
@@ -132,11 +173,10 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surfaceMuted,
-    padding: 16,
     borderRadius: radii.sm,
     overflow: 'hidden',
   },
+  phraseContent: { backgroundColor: colors.surfaceMuted, padding: 16 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   cell: {
     // Two columns: (100% − 10px gap) / 2

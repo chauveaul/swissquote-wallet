@@ -12,6 +12,7 @@ Self-custody EVM wallet for iOS and Android, implemented from the *Swissquote Cr
 | Chain | viem (accounts, signing, RPC), `@scure/bip39` (mnemonics) |
 | Crypto | `@noble/hashes` scrypt, `@noble/ciphers` AES-256-GCM, `react-native-get-random-values` CSPRNG |
 | Secure storage | `expo-secure-store` (iOS Keychain / Android Keystore) + `expo-local-authentication` |
+| Forms | `react-native-keyboard-controller` (keyboard-aware scrolling) |
 | UI | `react-native-svg`, `expo-blur`, `react-native-qrcode-svg`, Hanken Grotesk & IBM Plex Mono via `@expo-google-fonts` |
 | Quality | ESLint (`eslint-config-expo`), Jest (`jest-expo`) |
 
@@ -27,7 +28,7 @@ npm run web             # browser preview only (in-memory storage, no biometrics
 npm run typecheck && npm run lint && npm test
 ```
 
-Expo Go is not supported: Face ID-protected Keychain items need `NSFaceIDUsageDescription`, which only a development build includes.
+Expo Go is not supported: biometric-protected Keychain items need `NSFaceIDUsageDescription`, which only a development build includes.
 
 ### Configuration
 
@@ -35,6 +36,8 @@ Expo Go is not supported: Face ID-protected Keychain items need `NSFaceIDUsageDe
 | --- | --- | --- |
 | `EXPO_PUBLIC_DEMO_MODE` | `true` | Serve the design's balances/prices/activity and simulate broadcasting. Key management is always real. |
 | `EXPO_PUBLIC_RPC_URL_{ETH,ARB,OP,BASE,POL}` | chain's public RPC | RPC endpoints for fee estimation and broadcasting. |
+| `EXPO_PUBLIC_MARKET_DATA` | `swissquote` | `swissquote` = Swissquote's own real-time quotes for all 55 listed cryptos, daily history and FX; `kraken` = Kraken public data (intraday history, wallet tokens only); `demo` = the design's fixed sample prices. Independent of `EXPO_PUBLIC_DEMO_MODE`. |
+| `EXPO_PUBLIC_SWISSQUOTE_API_URL` | `https://www.swissquote.ch` (web dev: `/sq-api` proxy) | Base URL of the price service (e.g. a Swissquote mobile gateway). |
 
 ## Security model
 
@@ -45,6 +48,8 @@ Expo Go is not supported: Face ID-protected Keychain items need `NSFaceIDUsageDe
 - **Auto-lock** – after 60 s in the background; the iOS app-switcher snapshot is blurred while unlocked.
 - **Secrets on screen** – screenshots and recording are blocked on the recovery-phrase and restore screens; words are not rendered until "Tap to reveal"; inputs disable autocorrect, autofill and suggestions.
 - **Sensitive actions** – revealing the phrase and confirming a send/swap require a fresh biometric or passcode check.
+- **Sign out** – removes the vault, biometric key and metadata from the device and clears cached data, so a different wallet can be created or imported. It requires the password plus an explicit "I've saved my recovery phrase" confirmation, and is available from Settings and from the lock screen.
+- **Backup file** – the phrase can be downloaded as a file, but only encrypted (scrypt + AES-256-GCM, same as the vault) under a separate backup password of at least 12 characters; it is never written in plain text. Import validates the format, decrypts on device and never displays the phrase. "Save to device" writes it into a folder the user picks (Files on iOS, the storage picker on Android) without overwriting earlier backups; "Share file…" hands it to the share sheet and deletes the temporary copy afterwards.
 - **Recipients** – addresses are validated with EIP-55 checksums; unknown addresses get a "New address" warning, saved contacts are labelled.
 
 ## Project layout
@@ -76,16 +81,33 @@ src/
 | 07 Receive | `(wallet)/receive` |
 | 08 Swap | `(wallet)/swap` |
 | 09 Accounts & networks | `(wallet)/accounts` (modal) |
+| — Review swap *(added)* | `(wallet)/swap-review` |
+| — Buy · Review purchase *(added)* | `(wallet)/buy`, `(wallet)/buy-review` |
+| — QR scanner *(added)* | `(wallet)/scan` (full-screen modal) |
+| — Settings detail screens *(added)* | `(wallet)/security`, `connected-sites`, `currency`, `contacts`, `contact`, `help`, `about` |
+| — Transaction details *(added)* | `(wallet)/transaction/[id]` |
+| — Explore *(added, see below)* | `(wallet)/(tabs)/explore` |
+| — Sign out *(added)* | `(wallet)/sign-out`, and inline on `unlock` |
 | 10 Activity · 11 Settings | `(wallet)/(tabs)/activity`, `(wallet)/(tabs)/settings` |
 
 ## Deviations from the design and open items
 
 - **Set password step** – not drawn, but required by Unlock and implied by "Step 2 of 3" and "Next: set a new password for this device". Built from existing components.
+- **Explore tab** – not drawn; a searchable Markets list (price, 24h change) built from Activity's header and Home's token rows, opening coin detail.
+- **Sign out** – not drawn; "Lock wallet" only locks. Added a Sign out row under Security & privacy in Settings and a link on Unlock, plus a confirmation screen.
+- **Backup file** – not drawn; "Download encrypted backup" on the recovery-phrase screens and "Import backup file" on Restore.
 - **Validation states** – consent, empty phrase, invalid address and insufficient balance messages reuse the design's accent-text style.
 - **Content-box sizes** – several design boxes are CSS content-box (e.g. 52px inputs render 55px). The app matches the rendered size.
 - **Design sample address** – `0x8Ba1…BA72` fails EIP-55; the fixture uses the correctly checksummed `0x8ba1…BA72`.
 - **Placeholders kept as-is** – Swissquote logo box, `[N] providers compared`, `[FEE %]`, legal URLs (`src/lib/config.ts`).
-- **No screen in the design yet** (tappable but inert): Buy, Explore, QR scanner, swap settings, hardware wallet, custom network, network filter, most Settings rows, Swissquote account linking.
+- **Buy** – not drawn; CHF purchase funded from the linked Swissquote account, delivered to the selected account, with a 30 s quote and a review step (demo only, like swaps).
+- **QR scanner** – not drawn; `expo-camera` scanner opened by every scan icon. Accepts bare addresses and EIP-681 `ethereum:` links (checksum and network enforced, token calls and ENS rejected) and only pre-fills Send.
+- **Settings detail screens** – not drawn. Biometrics on/off (re-confirmed with biometrics/passcode) and an auto-lock delay the app enforces; connected sites (demo sessions until WalletConnect is integrated) with disconnect; display currency (CHF/EUR/USD/GBP, demo FX rates, amounts are stored in CHF and converted for display, Buy stays in CHF); an address book used by Send's saved-contact check; help FAQ; about. Support URLs are placeholders in `src/lib/config.ts`.
+- **Send recipients** – not drawn; an "Accounts & contacts" chip on the To row opens a searchable sheet of your other accounts and saved contacts. Send and Review label recognised recipients ("Your account", "Saved contact") and block sending to the account you're sending from.
+- **Activity network filter** – the "All networks" chip opens a network picker and filters the list.
+- **No screen in the design yet** (tappable but inert): swap settings, hardware wallet, custom network, Swissquote account linking.
+- **Review swap** – the design links "Review swap" to the Review screen; it is adapted for swaps (pay/receive, minimum received after slippage, fees). Quotes expire after 30 s and must be refreshed before confirming.
+- **Transaction details** – not drawn; tapping an Activity row opens type, date, account, full counterparty address (copyable), swap breakdown, network fee, failure reason and an explorer link when a hash exists.
 - **Swap execution** needs a DEX aggregator; in demo mode a confirmed swap is recorded locally, and in live mode it is disabled.
-- **Market data** (balances, prices, activity) comes from fixtures behind `features/market/queries.ts`; plug in a price/indexer API there.
+- **Market data** – live by default from Swissquote's own services: real-time quotes for every listed crypto (55, catalogued in `src/features/market/catalog.ts`) plus USD/EUR/GBP→CHF rates in one request per minute (`src/services/swissquote/quoteApi.ts`), and daily history (`chartApi.ts`), converted to CHF with Swissquote's USD/CHF rate of each day. Explore lists all of them; the wallet itself holds Ethereum-network tokens (ETH, WBTC, USDC, LINK), so other assets show prices and charts but no Send/Swap/Receive, and Buy offers wallet tokens only. WBTC isn't listed by Swissquote and is priced as BTC (1:1 backed). History is daily, so 1D shows previous close → latest; `EXPO_PUBLIC_MARKET_DATA=kraken` gives intraday charts for the wallet tokens. Balances and activity are still demo data. A missing price shows "—", never a guess. These are internal, undocumented endpoints: agree a contract with the owning Swissquote team before release, and run `npm run check:prices` (live check of every catalogued asset, FX and history) in CI. The web preview reaches them through a dev-only proxy in `metro.config.js` (no CORS).
 - **Recommended next steps** – recovery-phrase confirmation quiz, EIP-1559 fee estimation in the Review UI (live mode), token transfers (ERC-20), transaction simulation, and a third-party security audit before handling real funds.

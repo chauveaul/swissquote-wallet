@@ -1,19 +1,23 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '@/components/Button';
+import { Callout } from '@/components/Callout';
 import { NavHeader } from '@/components/Header';
 import { Icon } from '@/components/Icon';
 import { TokenMark } from '@/components/Marks';
 import { PriceChart } from '@/components/PriceChart';
+import { PriceStatus } from '@/components/PriceStatus';
 import { Screen, Spacer } from '@/components/Screen';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { Overline, Text } from '@/components/Text';
-import { usePriceHistory, useToken } from '@/features/market/queries';
+import { isWalletToken } from '@/features/market/catalog';
+import { useMarketToken, usePriceHistory, useToken } from '@/features/market/queries';
 import type { PriceRange, TokenSymbol } from '@/features/market/types';
+import { useFiat } from '@/features/settings/useFiat';
 import { useNetworkId, useSelectedAccount } from '@/features/wallet/store';
-import { formatChf, formatNumber } from '@/lib/format';
+import { formatNumber, priceDecimals } from '@/lib/format';
 import { getNetwork } from '@/lib/networks';
 import { colors, radii } from '@/theme/tokens';
 
@@ -35,16 +39,20 @@ const RANGE_NAMES: Record<PriceRange, string> = {
 
 /** 04b Coin detail & price history */
 export default function TokenDetail() {
+  const fiat = useFiat();
   const { symbol } = useLocalSearchParams<{ symbol: TokenSymbol }>();
   const account = useSelectedAccount();
   const network = getNetwork(useNetworkId());
   const token = useToken(account.index, symbol);
+  const market = useMarketToken(symbol);
+  const holdable = isWalletToken(symbol);
   const [range, setRange] = useState<PriceRange>('1M');
   const [hover, setHover] = useState<number | null>(null);
   const [watched, setWatched] = useState(false);
-  const { data: points = [] } = usePriceHistory(symbol, range);
+  const { data: chfPoints = [], isError: historyFailed } = usePriceHistory(symbol, range);
+  const points = useMemo(() => chfPoints.map((p) => ({ ...p, value: fiat.convert(p.value) })), [chfPoints, fiat]);
 
-  const name = token?.name ?? symbol;
+  const name = token?.name ?? market?.name ?? symbol;
   const n = points.length;
   const first = points[0]?.value ?? 0;
   const last = points[n - 1]?.value ?? 0;
@@ -53,6 +61,7 @@ export default function TokenDetail() {
   const diff = ref - first;
   const pct = first ? (diff / first) * 100 : 0;
   const up = diff >= 0;
+  const decimals = priceDecimals(last);
 
   return (
     <Screen paddingHorizontal={0} gap={16}>
@@ -60,7 +69,12 @@ export default function TokenDetail() {
         <NavHeader
           center={
             <View style={styles.title}>
-              <TokenMark label={token?.mark ?? symbol} color={token?.color ?? colors.primary} size={28} fontSize={10} />
+              <TokenMark
+                label={market?.mark ?? symbol}
+                color={market?.color ?? colors.primary}
+                size={28}
+                fontSize={10}
+              />
               <Text accessibilityRole="header" size={17} weight={700}>
                 {name}
               </Text>
@@ -84,32 +98,40 @@ export default function TokenDetail() {
         <Overline>{hovered ? hovered.label : `${name} price`}</Overline>
         <View style={styles.priceRow}>
           <Text size={20} weight={600} color={colors.textSecondary}>
-            CHF
+            {fiat.code}
           </Text>
           <Text size={40} weight={700} tracking={-0.02} lineHeight={1} tabular>
-            {formatNumber(ref)}
+            {n > 0 ? formatNumber(ref, decimals) : '—'}
           </Text>
         </View>
         <View style={styles.changeRow}>
           <Text size={14} weight={600} color={up ? colors.positive : colors.accentText}>
-            {up ? '+ ' : '− '}CHF {formatNumber(Math.abs(diff))} ({Math.abs(pct).toFixed(2)}%)
+            {n > 1
+              ? `${up ? '+ ' : '− '}${fiat.code} ${formatNumber(Math.abs(diff), decimals)} (${Math.abs(pct).toFixed(2)}%)`
+              : '—'}
           </Text>
           <Text size={14} color={colors.textMuted}>
             {RANGE_NAMES[range]}
           </Text>
         </View>
+        <PriceStatus />
       </View>
 
       <View style={[styles.gutter, styles.chart]}>
         {n > 1 ? (
           <PriceChart
             points={points}
+            currency={fiat.code}
             hover={hover}
             onHover={setHover}
-            accessibilityLabel={`${name} price in CHF, ${RANGE_NAMES[range].toLowerCase()}, from CHF ${formatNumber(first)} to CHF ${formatNumber(last)}`}
+            accessibilityLabel={`${name} price in ${fiat.code}, ${RANGE_NAMES[range].toLowerCase()}, from ${fiat.code} ${formatNumber(first, decimals)} to ${fiat.code} ${formatNumber(last, decimals)}`}
           />
         ) : (
-          <View style={styles.chartPlaceholder} />
+          <View style={[styles.chartPlaceholder, styles.chartEmpty]}>
+            <Text size={14} color={colors.textMuted}>
+              {historyFailed ? 'Price history unavailable right now.' : n === 0 ? 'No price history available.' : ''}
+            </Text>
+          </View>
         )}
         <View style={styles.axis}>
           <Text size={12} color={colors.textMuted}>
@@ -136,45 +158,57 @@ export default function TokenDetail() {
         />
       </View>
 
-      <View style={styles.position}>
-        <Overline style={styles.positionLabel}>Your position</Overline>
-        <View style={styles.positionRow}>
-          <Text size={20} weight={700}>
-            {formatNumber(token?.amount ?? 0, token?.displayDecimals ?? 4)} {symbol}
-          </Text>
-          <Text size={16} weight={600}>
-            {formatChf(token?.valueChf ?? 0)}
-          </Text>
+      {holdable ? (
+        <View style={styles.position}>
+          <Overline style={styles.positionLabel}>Your position</Overline>
+          <View style={styles.positionRow}>
+            <Text size={20} weight={700}>
+              {formatNumber(token?.amount ?? 0, token?.displayDecimals ?? 4)} {symbol}
+            </Text>
+            <Text size={16} weight={600}>
+              {token?.priceAvailable === false ? '—' : fiat.format(token?.valueChf ?? 0)}
+            </Text>
+          </View>
+          <View style={styles.networkRow}>
+            <Text size={14} color={colors.textSecondary}>
+              Network
+            </Text>
+            <Text size={14} weight={600}>
+              {network.name}
+            </Text>
+          </View>
         </View>
-        <View style={styles.networkRow}>
-          <Text size={14} color={colors.textSecondary}>
-            Network
-          </Text>
-          <Text size={14} weight={600}>
-            {network.name}
-          </Text>
+      ) : (
+        <View style={styles.gutter}>
+          {/* Not in the design: markets list every Swissquote crypto, the wallet holds Ethereum-network tokens only. */}
+          <Callout tone="info" size={13} background={colors.surfaceMuted}>
+            {name} isn’t on the networks this wallet supports, so it can’t be held, sent or received here. You can
+            follow its price.
+          </Callout>
         </View>
-      </View>
+      )}
 
       <Spacer />
 
-      <View style={[styles.gutter, styles.actions]}>
-        <Button label="Send" fontSize={15} style={styles.action} onPress={() => router.push('/send')} />
-        <Button
-          label="Swap"
-          variant="secondary"
-          fontSize={15}
-          style={styles.action}
-          onPress={() => router.push('/swap')}
-        />
-        <Button
-          label="Receive"
-          variant="secondary"
-          fontSize={15}
-          style={styles.action}
-          onPress={() => router.push('/receive')}
-        />
-      </View>
+      {holdable ? (
+        <View style={[styles.gutter, styles.actions]}>
+          <Button label="Send" fontSize={15} style={styles.action} onPress={() => router.push('/send')} />
+          <Button
+            label="Swap"
+            variant="secondary"
+            fontSize={15}
+            style={styles.action}
+            onPress={() => router.push('/swap')}
+          />
+          <Button
+            label="Receive"
+            variant="secondary"
+            fontSize={15}
+            style={styles.action}
+            onPress={() => router.push('/receive')}
+          />
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -188,6 +222,7 @@ const styles = StyleSheet.create({
   changeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chart: { gap: 6 },
   chartPlaceholder: { height: 220 },
+  chartEmpty: { alignItems: 'center', justifyContent: 'center' },
   axis: { flexDirection: 'row', justifyContent: 'space-between' },
   position: {
     marginTop: 4,
