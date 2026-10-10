@@ -8,77 +8,47 @@ import { Icon } from '@/components/Icon';
 import { TokenPill } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
-import { demoQuotes } from '@/features/market/fixtures';
-import { appNow, localActivityId, useLocalActivity, usePortfolio } from '@/features/market/queries';
-import type { TokenSymbol } from '@/features/market/types';
-import { sanitizeAmount } from '@/features/send/draft';
-import { confirmUserPresence } from '@/features/wallet/biometrics';
+import { usePortfolio } from '@/features/market/queries';
+import { QUOTE_TTL_S, quoteSwap, useSwapDraft } from '@/features/swap/quote';
 import { useSelectedAccount } from '@/features/wallet/store';
-import { DEMO_MODE } from '@/lib/config';
 import { formatChf, formatNumber } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
-
-const QUOTE_TTL = 30;
-
-type Side = { symbol: TokenSymbol; decimals: number; chf: number };
-
-const ETH: Side = { symbol: 'ETH', decimals: 4, chf: demoQuotes.ethChf };
-const USDC: Side = { symbol: 'USDC', decimals: 2, chf: demoQuotes.ethChf / demoQuotes.ethUsdc };
 
 /** 08 Swap */
 export default function Swap() {
   const account = useSelectedAccount();
   const { data: portfolio } = usePortfolio(account.index);
-  const addActivity = useLocalActivity((s) => s.add);
-  const [flipped, setFlipped] = useState(false);
-  const [pay, setPay] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(QUOTE_TTL);
+  const { flipped, pay, setFlipped, setPay } = useSwapDraft();
+  const [secondsLeft, setSecondsLeft] = useState(QUOTE_TTL_S);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = setInterval(() => setSecondsLeft((s) => (s <= 1 ? QUOTE_TTL : s - 1)), 1000);
+    const t = setInterval(() => setSecondsLeft((s) => (s <= 1 ? QUOTE_TTL_S : s - 1)), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const from = flipped ? USDC : ETH;
-  const to = flipped ? ETH : USDC;
-  const rate = flipped ? 1 / demoQuotes.ethUsdc : demoQuotes.ethUsdc;
+  const payValue = Number(pay) || 0;
+  const quote = quoteSwap(flipped, payValue);
+  const { from, to } = quote;
+  const receiveValue = quote.receive;
+  const payChf = quote.payChf;
+  const receiveChf = quote.receiveChf;
   const balance = portfolio?.tokens.find((t) => t.symbol === from.symbol)?.amount ?? 0;
 
-  const payValue = Number(pay) || 0;
-  const receiveValue = payValue * rate;
-  const payChf = payValue * from.chf;
-  const receiveChf = payChf * demoQuotes.swapValueRatio;
-
-  const rateLabel = flipped
-    ? `1 USDC = ${formatNumber(1 / demoQuotes.ethUsdc, 6)} ETH`
-    : `1 ETH = ${formatNumber(demoQuotes.ethUsdc)} USDC`;
-
   const details: [string, string][] = [
-    ['Rate', rateLabel],
-    ['Best of quotes', demoQuotes.providersCompared],
-    ['Max. slippage', `${demoQuotes.slippagePct}%`],
-    ['Network fee', formatChf(demoQuotes.swapNetworkFeeChf)],
-    ['Swissquote fee', demoQuotes.swissquoteFee],
+    ['Rate', quote.rateLabel],
+    ['Best of quotes', quote.providers],
+    ['Max. slippage', `${quote.slippagePct}%`],
+    ['Network fee', formatChf(quote.networkFeeChf)],
+    ['Swissquote fee', quote.swissquoteFee],
   ];
 
-  const review = async () => {
+  // Nothing is submitted here: the review screen shows the full quote first.
+  const review = () => {
     setError(null);
     if (payValue <= 0) return setError('Enter an amount to swap.');
     if (payValue > balance) return setError(`Insufficient ${from.symbol} balance.`);
-    if (!DEMO_MODE) return setError('Swaps are not available yet.');
-    if (!(await confirmUserPresence('Confirm swap'))) return;
-    addActivity({
-      id: localActivityId(),
-      kind: 'swap',
-      title: `Swapped ${from.symbol} → ${to.symbol}`,
-      status: 'pending',
-      eta: demoQuotes.feeEta.market,
-      amount: `+ ${formatNumber(receiveValue, to.decimals)} ${to.symbol}`,
-      fiat: formatChf(receiveChf),
-      timestamp: appNow(),
-    });
-    router.dismissTo('/activity');
+    router.push('/swap-review');
   };
 
   return (
@@ -106,7 +76,7 @@ export default function Swap() {
               accessibilityLabel="Amount to pay"
               value={pay}
               onChangeText={(v) => {
-                setPay(sanitizeAmount(v));
+                setPay(v);
                 setError(null);
               }}
               placeholder="0"
@@ -127,7 +97,7 @@ export default function Swap() {
           accessibilityRole="button"
           accessibilityLabel="Flip tokens"
           onPress={() => {
-            setFlipped((f) => !f);
+            setFlipped(!flipped);
             setPay(receiveValue ? receiveValue.toFixed(to.decimals) : '');
           }}
           style={styles.flip}

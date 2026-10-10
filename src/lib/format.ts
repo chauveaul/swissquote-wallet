@@ -5,6 +5,11 @@ export function formatNumber(value: number, decimals = 2): string {
   return (value < 0 ? '-' : '') + (frac ? `${grouped}.${frac}` : grouped);
 }
 
+/** Decimals for a CHF price: 4 below CHF 1 (e.g. stablecoins), otherwise 2. */
+export function priceDecimals(price: number): number {
+  return Math.abs(price) < 1 ? 4 : 2;
+}
+
 /** `CHF 1’453.70` */
 export function formatChf(value: number): string {
   return `CHF ${formatNumber(value)}`;
@@ -31,4 +36,16 @@ export function truncateAddress(address: string, lead = 4, tail = 4): string {
 /** Formats a token amount with a fixed number of decimals and Swiss grouping. */
 export function formatTokenAmount(amount: number, symbol: string, decimals = 4): string {
   return `${formatNumber(amount, decimals)} ${symbol}`;
+}
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** `10 October 2026, 13:30` */
+export function formatDateTime(timestamp: number): string {
+  const d = new Date(timestamp);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

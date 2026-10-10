@@ -65,6 +65,10 @@ export default function Review() {
         fiat: formatChf(value * demoQuotes.ethChf),
         timestamp: appNow(),
         hash,
+        accountIndex: account.index,
+        networkId,
+        counterparty: { label: contact?.name, address: recipient },
+        fee: `${formatNumber(fee.eth, 5)} ETH · ${formatChf(fee.chf)}`,
       });
       reset();
       router.dismissTo('/activity');

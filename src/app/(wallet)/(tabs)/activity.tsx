@@ -1,42 +1,23 @@
 import { Pressable, SectionList, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
 import { Overline, Text } from '@/components/Text';
+import { activityPresentation, KIND_ICON } from '@/features/market/activityPresentation';
 import { groupActivity, useActivity } from '@/features/market/queries';
-import type { ActivityItem, ActivityKind } from '@/features/market/types';
+import type { ActivityItem } from '@/features/market/types';
 import { colors, radii } from '@/theme/tokens';
 
-const KIND_ICON: Record<ActivityKind, IconName> = {
-  send: 'send',
-  receive: 'receive',
-  swap: 'swap',
-  approve: 'check',
-};
-
-function presentation(item: ActivityItem) {
-  switch (item.status) {
-    case 'pending':
-      return {
-        status: item.eta ? `Pending · ${item.eta}` : 'Pending',
-        statusColor: colors.accentText,
-        iconBg: colors.accentSurface,
-        iconFg: colors.accentText,
-      };
-    case 'failed':
-      return { status: 'Failed', statusColor: colors.textMuted, iconBg: colors.surfaceMuted, iconFg: colors.textMuted };
-    default:
-      return { status: 'Confirmed', statusColor: colors.positive, iconBg: colors.surfaceMuted, iconFg: colors.ink };
-  }
-}
-
 function ActivityRow({ item }: { item: ActivityItem }) {
-  const p = presentation(item);
+  const p = activityPresentation(item);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${item.title}, ${p.status}, ${item.amount}, ${item.fiat}`}
+      accessibilityHint="Shows the transaction details"
+      onPress={() => router.push({ pathname: '/transaction/[id]', params: { id: item.id } })}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceMuted }]}
     >
       <View style={[styles.icon, { backgroundColor: p.iconBg }]}>

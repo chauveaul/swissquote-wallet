@@ -11,7 +11,7 @@ import { AUTO_LOCK_MS, DEMO_MODE } from '@/lib/config';
 import { networks } from '@/lib/networks';
 import { colors, radii } from '@/theme/tokens';
 
-type Row = { label: string; value?: string; href?: Href };
+type Row = { label: string; value?: string; href?: Href; destructive?: boolean };
 
 /** 11 Settings */
 export default function Settings() {
@@ -25,8 +25,10 @@ export default function Settings() {
       label: 'Security & privacy',
       rows: [
         { label: 'Reveal recovery phrase', href: '/recovery-phrase' },
-        { label: 'Face ID & auto-lock', value: `${biometrics ? '' : 'Off · '}${AUTO_LOCK_MS / 60_000} min` },
+        { label: 'Biometrics & auto-lock', value: `${biometrics ? '' : 'Off · '}${AUTO_LOCK_MS / 60_000} min` },
         { label: 'Connected sites', value: DEMO_MODE ? '3' : '0' },
+        // Not in the design: removes the wallet so a different one can be used.
+        { label: 'Sign out', href: '/sign-out', destructive: true },
       ],
     },
     {
@@ -81,7 +83,12 @@ export default function Settings() {
                   onPress={row.href ? () => router.push(row.href!) : undefined}
                   style={styles.row}
                 >
-                  <Text size={15} weight={500} style={styles.flex}>
+                  <Text
+                    size={15}
+                    weight={row.destructive ? 600 : 500}
+                    color={row.destructive ? colors.accentText : colors.ink}
+                    style={styles.flex}
+                  >
                     {row.label}
                   </Text>
                   {row.value ? (

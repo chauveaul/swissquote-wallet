@@ -1,4 +1,4 @@
-import type { Address, HDAccount } from 'viem';
+import { zeroAddress, type Address, type HDAccount } from 'viem';
 import { create } from 'zustand';
 
 import type { NetworkId } from '@/lib/networks';
@@ -33,6 +33,8 @@ const KEYS = { vault: 'sqw.vault', meta: 'sqw.meta', bioKey: 'sqw.bioKey' } as c
 type WalletState = {
   status: WalletStatus;
   meta: WalletMeta | null;
+  /** Incremented each time a wallet is created or imported on this device. */
+  walletGeneration: number;
   /** Recovery phrase being created/restored; lives only until the vault exists. */
   draftMnemonic: string | null;
 
@@ -44,6 +46,10 @@ type WalletState = {
   unlockWithPassword: (password: string) => Promise<void>;
   unlockWithBiometrics: (prompt: string) => Promise<boolean>;
   lock: () => void;
+  /** Checks the password without changing the session. */
+  verifyPassword: (password: string) => Promise<void>;
+  /** Signs out: deletes the vault, keys and metadata from this device. */
+  removeWallet: () => Promise<void>;
   revealMnemonic: () => string;
   getSigner: (index: number) => HDAccount;
   addAccount: () => Promise<void>;
@@ -76,6 +82,7 @@ async function saveMeta(meta: WalletMeta) {
 export const useWallet = create<WalletState>((set, get) => ({
   status: 'loading',
   meta: null,
+  walletGeneration: 0,
   draftMnemonic: null,
 
   hydrate: async () => {
@@ -128,7 +135,12 @@ export const useWallet = create<WalletState>((set, get) => ({
     wipeSession();
     vault = created.vault;
     sessionKey = created.key;
-    set({ status: 'unlocked', meta, draftMnemonic: null });
+    set((s) => ({
+      status: 'unlocked',
+      meta,
+      draftMnemonic: null,
+      walletGeneration: s.walletGeneration + 1,
+    }));
   },
 
   unlockWithPassword: async (password) => {
@@ -158,6 +170,24 @@ export const useWallet = create<WalletState>((set, get) => ({
   lock: () => {
     wipeSession();
     set({ status: get().meta ? 'locked' : 'empty', draftMnemonic: null });
+  },
+
+  verifyPassword: async (password) => {
+    if (!vault) throw new Error('No wallet on this device');
+    const { key } = await unlockVault(vault, password);
+    key.fill(0);
+  },
+
+  removeWallet: async () => {
+    // Vault first: once it is gone the remaining items are useless on their own.
+    await secureStorage.remove(KEYS.vault);
+    await Promise.all([
+      secureStorage.remove(KEYS.meta),
+      secureStorage.removeProtected(KEYS.bioKey).catch(() => undefined),
+    ]);
+    wipeSession();
+    vault = null;
+    set({ status: 'empty', meta: null, draftMnemonic: null });
   },
 
   revealMnemonic: () => {
@@ -197,11 +227,17 @@ export const useWallet = create<WalletState>((set, get) => ({
   },
 }));
 
-/** Currently selected account. Only valid once the wallet exists. */
+const NO_ACCOUNT: AccountMeta = { index: 0, name: '', address: zeroAddress };
+
+/**
+ * Currently selected account. Falls back to an empty placeholder for the one
+ * render between signing out and the wallet screens unmounting.
+ */
 export function useSelectedAccount(): AccountMeta {
   return useWallet((s) => {
-    const meta = s.meta!;
-    return meta.accounts.find((a) => a.index === meta.selectedIndex) ?? meta.accounts[0]!;
+    const meta = s.meta;
+    if (!meta) return NO_ACCOUNT;
+    return meta.accounts.find((a) => a.index === meta.selectedIndex) ?? meta.accounts[0] ?? NO_ACCOUNT;
   });
 }
 

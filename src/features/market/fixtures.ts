@@ -1,3 +1,5 @@
+import { getAddress } from 'viem';
+
 import { colors } from '@/theme/tokens';
 
 import type { ActivityItem, Contact, Portfolio, PricePoint, PriceRange, TokenHolding } from './types';
@@ -46,11 +48,61 @@ const DAY = 86_400_000;
 /** Design reference "now": 10 October 2026, 14:30. */
 export const DEMO_NOW = new Date(2026, 9, 10, 14, 30).getTime();
 
+/** Demo counterparties (not real people or services). */
+const DEMO_SENDER = getAddress('0x2f6a1d3c5e7b9a0c4d6e8f1a3b5c7d9e0f2a4b6c');
+const DEMO_SPENDER = getAddress('0x7a3e5c1b9d2f4a6c8e0b1d3f5a7c9e2b4d6f8a0c');
+
+const demoBase = { accountIndex: 0, networkId: 'eth' } as const;
+
 export const demoActivity: ActivityItem[] = [
-  { id: 'a2', kind: 'swap', title: 'Swapped ETH → USDC', status: 'confirmed', amount: '+ 823.41 USDC', fiat: 'CHF 725.10', timestamp: DEMO_NOW - 3_600_000 },
-  { id: 'a3', kind: 'receive', title: 'Received ETH', status: 'confirmed', amount: '+ 1.2000 ETH', fiat: 'CHF 3’488.90', timestamp: DEMO_NOW - 2 * DAY },
-  { id: 'a4', kind: 'approve', title: 'Approve USDC spend', status: 'confirmed', amount: '0 USDC', fiat: 'Fee CHF 0.84', timestamp: DEMO_NOW - 2 * DAY - 60_000 },
-  { id: 'a5', kind: 'send', title: 'Sent LINK', status: 'failed', amount: '− 10.00 LINK', fiat: 'CHF 110.00', timestamp: DEMO_NOW - 2 * DAY - 120_000 },
+  {
+    ...demoBase,
+    id: 'a2',
+    kind: 'swap',
+    title: 'Swapped ETH → USDC',
+    status: 'confirmed',
+    amount: '+ 823.41 USDC',
+    fiat: 'CHF 725.10',
+    timestamp: DEMO_NOW - 3_600_000,
+    fee: 'CHF 2.10',
+    swap: { paid: '− 0.2500 ETH', received: '+ 823.41 USDC', rate: '1 ETH = 3’293.64 USDC', minReceived: '819.29 USDC' },
+  },
+  {
+    ...demoBase,
+    id: 'a3',
+    kind: 'receive',
+    title: 'Received ETH',
+    status: 'confirmed',
+    amount: '+ 1.2000 ETH',
+    fiat: 'CHF 3’488.90',
+    timestamp: DEMO_NOW - 2 * DAY,
+    counterparty: { address: DEMO_SENDER },
+  },
+  {
+    ...demoBase,
+    id: 'a4',
+    kind: 'approve',
+    title: 'Approve USDC spend',
+    status: 'confirmed',
+    amount: '0 USDC',
+    fiat: 'Fee CHF 0.84',
+    timestamp: DEMO_NOW - 2 * DAY - 60_000,
+    counterparty: { label: 'Swap router (demo)', address: DEMO_SPENDER },
+    fee: '0.00029 ETH · CHF 0.84',
+  },
+  {
+    ...demoBase,
+    id: 'a5',
+    kind: 'send',
+    title: 'Sent LINK',
+    status: 'failed',
+    amount: '− 10.00 LINK',
+    fiat: 'CHF 110.00',
+    timestamp: DEMO_NOW - 2 * DAY - 120_000,
+    counterparty: { label: 'Mia (Ledger)', address: '0x8ba1f109551bD432803012645Ac136ddd64DBA72' },
+    fee: '0.00038 ETH · CHF 1.10',
+    failureReason: 'The transaction ran out of gas. The network fee was still charged; no LINK left your wallet.',
+  },
 ];
 
 const RANGE_CFG: Record<PriceRange, { n: number; stepMin: number; vol: number; seed: number }> = {
@@ -65,9 +117,9 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const pad = (x: number) => String(x).padStart(2, '0');
 
 /** Deterministic price history — same generator and seeds as the design prototype. */
-export function demoPriceSeries(range: PriceRange, end = 2907.3): PricePoint[] {
+export function demoPriceSeries(range: PriceRange, end = 2907.3, seedOffset = 0): PricePoint[] {
   const cfg = RANGE_CFG[range];
-  let s = cfg.seed;
+  let s = cfg.seed + seedOffset;
   const rnd = () => {
     s = (s * 16807) % 2147483647;
     return s / 2147483647;

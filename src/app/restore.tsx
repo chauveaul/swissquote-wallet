@@ -9,9 +9,12 @@ import { Icon } from '@/components/Icon';
 import { Screen, Spacer } from '@/components/Screen';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { Overline, Text } from '@/components/Text';
+import { parseBackup, type BackupFile } from '@/features/wallet/backup';
+import { pickBackupFile } from '@/features/wallet/backupFile';
 import { isValidMnemonic, isWordInList, normalizeWords, type PhraseLength } from '@/features/wallet/mnemonic';
 import { useWallet } from '@/features/wallet/store';
 import { usePreventScreenshots } from '@/features/wallet/usePreventScreenshots';
+import { BackupImportScreen } from '@/screens/BackupImportScreen';
 import { colors, fonts, radii } from '@/theme/tokens';
 
 const LENGTHS = [
@@ -30,6 +33,7 @@ export default function Restore() {
   const [touched, setTouched] = useState<boolean[]>(() => Array(24).fill(false));
   const [error, setError] = useState<string | null>(null);
   const inputs = useRef<(TextInput | null)[]>([]);
+  const [importing, setImporting] = useState<{ name: string; backup: BackupFile } | null>(null);
 
   const fieldHeight = length === 24 ? 34 : 44;
   const visible = words.slice(0, length);
@@ -54,6 +58,17 @@ export default function Restore() {
   const markTouched = (index: number) =>
     setTouched((prev) => prev.map((t, i) => (i === index ? true : t)));
 
+  const importFile = async () => {
+    setError(null);
+    try {
+      const picked = await pickBackupFile();
+      if (!picked) return;
+      setImporting({ name: picked.name, backup: parseBackup(picked.contents) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'The file could not be opened.');
+    }
+  };
+
   const submit = () => {
     const phrase = normalizeWords(visible);
     if (visible.some((w) => !w.trim())) {
@@ -68,6 +83,21 @@ export default function Restore() {
     setWords(Array(24).fill(''));
     router.push({ pathname: '/set-password', params: { flow: 'restore' } });
   };
+
+  if (importing) {
+    return (
+      <BackupImportScreen
+        fileName={importing.name}
+        backup={importing.backup}
+        onCancel={() => setImporting(null)}
+        onUnlocked={(phrase) => {
+          setImporting(null);
+          beginRestore(phrase);
+          router.push({ pathname: '/set-password', params: { flow: 'restore' } });
+        }}
+      />
+    );
+  }
 
   return (
     <Screen gap={18}>
@@ -154,6 +184,17 @@ export default function Restore() {
       <Callout size={13}>
         Only enter your phrase in this app. Swissquote will never ask for it by phone, e-mail or chat.
       </Callout>
+
+      {/* Not in the design: restore from an encrypted backup file instead of typing. */}
+      <Button
+        label="Import backup file"
+        variant="secondary"
+        icon="file"
+        iconSize={18}
+        height={48}
+        fontSize={15}
+        onPress={importFile}
+      />
 
       <Spacer />
 

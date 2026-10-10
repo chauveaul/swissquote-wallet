@@ -7,7 +7,7 @@ import { colors } from '@/theme/tokens';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
 
-export type TabRoute = 'index' | 'activity' | 'settings';
+export type TabRoute = 'index' | 'explore' | 'activity' | 'settings';
 
 type Props = {
   current: TabRoute;
@@ -47,8 +47,12 @@ export function BottomNav({ current, onNavigate }: Props) {
   return (
     <View accessibilityRole="tablist" style={[styles.bar, { paddingBottom: Math.max(24, insets.bottom) }]}>
       <NavItem label="Wallet" icon="wallet" active={current === 'index'} onPress={() => onNavigate('index')} />
-      {/* Explore has no screen in the design yet. */}
-      <NavItem label="Explore" icon="explore" active={false} />
+      <NavItem
+        label="Explore"
+        icon="explore"
+        active={current === 'explore'}
+        onPress={() => onNavigate('explore')}
+      />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Trade"

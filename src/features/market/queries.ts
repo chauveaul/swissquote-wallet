@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { DEMO_MODE } from '@/lib/config';
 
 import { demoActivity, demoPortfolio, demoPriceSeries, DEMO_NOW } from './fixtures';
-import type { ActivityItem, Portfolio, PriceRange, TokenSymbol } from './types';
+import type { ActivityItem, MarketToken, Portfolio, PriceRange, TokenSymbol } from './types';
 
 /*
  * Data access hooks. Screens only depend on these, so replacing the demo
@@ -20,6 +20,8 @@ function demoSpotChf(symbol: TokenSymbol): number {
   const t = demoPortfolio.tokens.find((x) => x.symbol === symbol);
   return t && t.amount ? t.valueChf / t.amount : 1;
 }
+
+const SEED_OFFSET: Record<TokenSymbol, number> = { ETH: 0, WBTC: 101, USDC: 202, LINK: 303 };
 
 const EMPTY_PORTFOLIO: Portfolio = { tokens: [], totalChf: 0, changeTodayChf: 0, changeTodayPct: 0 };
 
@@ -37,10 +39,34 @@ export function useToken(accountIndex: number, symbol: TokenSymbol) {
   return portfolio.data?.tokens.find((t) => t.symbol === symbol) ?? null;
 }
 
+const demoMarkets: MarketToken[] = demoPortfolio.tokens.map(({ symbol, name, mark, color, change24hPct }) => ({
+  symbol,
+  name,
+  mark,
+  color,
+  change24hPct,
+  priceChf: demoSpotChf(symbol),
+}));
+
+/** Tradable tokens with spot price and 24h change (Explore). */
+export function useMarkets() {
+  return useQuery({ queryKey: ['markets'], queryFn: async () => demoMarkets, staleTime: 30_000 });
+}
+
+export function useMarketToken(symbol: TokenSymbol) {
+  return useMarkets().data?.find((t) => t.symbol === symbol) ?? null;
+}
+
 export function usePriceHistory(symbol: TokenSymbol, range: PriceRange) {
   return useQuery({
     queryKey: ['priceHistory', symbol, range],
-    queryFn: async () => demoPriceSeries(range, demoSpotChf(symbol)),
+    queryFn: async () => {
+      const end = demoSpotChf(symbol);
+      // ETH keeps the design's seeds; other tokens get their own curve.
+      const series = demoPriceSeries(range, end, SEED_OFFSET[symbol]);
+      // A stablecoin should hover around its peg, not swing like ETH.
+      return symbol === 'USDC' ? series.map((p) => ({ ...p, value: end + (p.value - end) * 0.01 })) : series;
+    },
     staleTime: 60_000,
     placeholderData: (prev) => prev,
   });

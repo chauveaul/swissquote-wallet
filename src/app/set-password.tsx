@@ -8,7 +8,7 @@ import { StepHeader } from '@/components/Header';
 import { PasswordField } from '@/components/PasswordField';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
-import { biometricLabel, getBiometricKind, type BiometricKind } from '@/features/wallet/biometrics';
+import { isBiometricsAvailable } from '@/features/wallet/biometrics';
 import { useWallet } from '@/features/wallet/store';
 import { colors } from '@/theme/tokens';
 
@@ -28,7 +28,7 @@ export default function SetPassword() {
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [bioKind, setBioKind] = useState<BiometricKind>(null);
+  const [hasBiometrics, setHasBiometrics] = useState(false);
   const [useBiometrics, setUseBiometrics] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -36,7 +36,7 @@ export default function SetPassword() {
   const confirmRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    getBiometricKind().then(setBioKind).catch(() => setBioKind(null));
+    isBiometricsAvailable().then(setHasBiometrics).catch(() => setHasBiometrics(false));
   }, []);
 
   if (!draft) return <Redirect href={restoring ? '/restore' : '/welcome'} />;
@@ -50,7 +50,7 @@ export default function SetPassword() {
     setBusy(true);
     setFailure(null);
     try {
-      await createWallet(password, !!bioKind && useBiometrics);
+      await createWallet(password, hasBiometrics && useBiometrics);
       // The root layout's route guards take over once the wallet is unlocked.
     } catch {
       setFailure('Could not secure your wallet on this device. Please try again.');
@@ -91,14 +91,14 @@ export default function SetPassword() {
           onSubmitEditing={submit}
           error={submitted && !tooShort && mismatch ? 'Passwords don’t match.' : null}
         />
-        {bioKind ? (
+        {hasBiometrics ? (
           <Checkbox
             checked={useBiometrics}
             onChange={setUseBiometrics}
-            accessibilityLabel={`Unlock with ${biometricLabel(bioKind)}`}
+            accessibilityLabel="Unlock with biometrics"
           >
             <Text size={14} lineHeight={1.4} color={colors.textSecondary}>
-              Unlock with {biometricLabel(bioKind)}
+              Unlock with biometrics
             </Text>
           </Checkbox>
         ) : null}

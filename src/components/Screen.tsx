@@ -1,9 +1,13 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/theme/tokens';
+
+/** Space kept between the focused input and the top of the keyboard. */
+const KEYBOARD_GAP = 24;
 
 export type ScreenProps = {
   children: ReactNode;
@@ -52,20 +56,21 @@ export function Screen({
   return (
     <View style={[styles.root, { backgroundColor: background }]}>
       <StatusBar style={statusBar} />
-      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {scroll ? (
-          <ScrollView
-            style={styles.root}
-            contentContainerStyle={content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {children}
-          </ScrollView>
-        ) : (
-          <View style={[styles.root, content]}>{children}</View>
-        )}
-      </KeyboardAvoidingView>
+      {scroll ? (
+        // Scrolls the focused input above the keyboard and keeps the rest of
+        // the form reachable while the keyboard is open (iOS and Android).
+        <KeyboardAwareScrollView
+          style={styles.root}
+          contentContainerStyle={content}
+          bottomOffset={KEYBOARD_GAP}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </KeyboardAwareScrollView>
+      ) : (
+        <View style={[styles.root, content]}>{children}</View>
+      )}
       {footer}
     </View>
   );

@@ -11,7 +11,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.swissquote.cryptowallet",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "Use Face ID to unlock your wallet and approve transactions.",
+        "NSFaceIDUsageDescription": "Use biometrics to unlock your wallet and approve transactions.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -36,14 +36,14 @@
       [
         "expo-secure-store",
         {
-          "faceIDPermission": "Use Face ID to unlock your wallet and approve transactions.",
+          "faceIDPermission": "Use biometrics to unlock your wallet and approve transactions.",
           "configureAndroidBackup": true
         }
       ],
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Use Face ID to unlock your wallet and approve transactions."
+          "faceIDPermission": "Use biometrics to unlock your wallet and approve transactions."
         }
       ],
       "expo-font",
@@ -54,7 +54,8 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 120
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

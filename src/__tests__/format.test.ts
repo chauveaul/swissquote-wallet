@@ -1,4 +1,4 @@
-import { formatChf, formatNumber, formatPercentChange, truncateAddress } from '@/lib/format';
+import { formatChf, formatNumber, formatPercentChange, priceDecimals, truncateAddress } from '@/lib/format';
 
 describe('format', () => {
   it('uses Swiss grouping', () => {
@@ -11,6 +11,11 @@ describe('format', () => {
     expect(formatPercentChange(3.1)).toBe('+ 3.10%');
     expect(formatPercentChange(-0.85)).toBe('− 0.85%');
     expect(formatPercentChange(0)).toBe('0.00%');
+  });
+
+  it('uses 4 decimals for sub-franc prices', () => {
+    expect(priceDecimals(0.8831)).toBe(4);
+    expect(priceDecimals(2907.3)).toBe(2);
   });
 
   it('truncates addresses like the design', () => {

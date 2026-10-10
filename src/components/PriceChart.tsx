@@ -3,7 +3,7 @@ import { StyleSheet, View, type GestureResponderEvent, type LayoutChangeEvent } 
 import Svg, { Path } from 'react-native-svg';
 
 import type { PricePoint } from '@/features/market/types';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, priceDecimals } from '@/lib/format';
 import { colors, radii } from '@/theme/tokens';
 
 import { Text } from './Text';
@@ -40,11 +40,12 @@ export function PriceChart({ points, hover, onHover, accent = colors.accent, acc
     const y = (v: number) => PAD_TOP + (1 - (v - min) / (max - min)) * (HEIGHT - PAD_TOP - PAD_BOTTOM);
     const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ');
     const area = `${line} L${width} ${HEIGHT} L0 ${HEIGHT} Z`;
+    const decimals = priceDecimals(max);
     const grid = [0, 0.5, 1].map((f) => {
       const v = min + padV + f * (max - min - 2 * padV);
-      return { y: y(v), label: formatNumber(v) };
+      return { y: y(v), label: formatNumber(v, decimals) };
     });
-    return { x, y, line, area, grid };
+    return { x, y, line, area, grid, decimals };
   }, [points, n, width]);
 
   const indexAt = (e: GestureResponderEvent) => {
@@ -95,7 +96,7 @@ export function PriceChart({ points, hover, onHover, accent = colors.accent, acc
               {points[active]!.label}
             </Text>
             <Text size={14} weight={700} color={colors.surface}>
-              CHF {formatNumber(points[active]!.value)}
+              CHF {formatNumber(points[active]!.value, geo.decimals)}
             </Text>
           </View>
         </>

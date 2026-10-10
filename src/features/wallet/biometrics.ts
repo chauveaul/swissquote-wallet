@@ -1,30 +1,12 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 
-export type BiometricKind = 'faceId' | 'fingerprint' | 'iris' | null;
-
-/** Returns the enrolled biometric type, or null if none is available. */
-export async function getBiometricKind(): Promise<BiometricKind> {
+/** True when the device has biometric hardware with at least one enrolment (face, fingerprint or iris). */
+export async function isBiometricsAvailable(): Promise<boolean> {
   const [hasHardware, enrolled] = await Promise.all([
     LocalAuthentication.hasHardwareAsync(),
     LocalAuthentication.isEnrolledAsync(),
   ]);
-  if (!hasHardware || !enrolled) return null;
-  const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-  if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) return 'faceId';
-  if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) return 'fingerprint';
-  if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) return 'iris';
-  return null;
-}
-
-export function biometricLabel(kind: BiometricKind): string {
-  switch (kind) {
-    case 'fingerprint':
-      return 'fingerprint';
-    case 'iris':
-      return 'iris';
-    default:
-      return 'Face ID';
-  }
+  return hasHardware && enrolled;
 }
 
 /**

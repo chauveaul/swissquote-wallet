@@ -49,11 +49,14 @@ function AccountRow({ account, selected, onPress }: { account: AccountMeta; sele
 
 /** 09 Accounts & networks */
 export default function Accounts() {
-  const meta = useWallet((s) => s.meta)!;
+  const meta = useWallet((s) => s.meta);
   const selectAccount = useWallet((s) => s.selectAccount);
   const selectNetwork = useWallet((s) => s.selectNetwork);
   const addAccount = useWallet((s) => s.addAccount);
   const [adding, setAdding] = useState(false);
+
+  // Signed out: this screen is about to unmount.
+  if (!meta) return null;
 
   return (
     <Screen paddingHorizontal={0} paddingBottom={24} gap={12}>

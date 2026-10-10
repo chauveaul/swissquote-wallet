@@ -10,10 +10,10 @@ import { PriceChart } from '@/components/PriceChart';
 import { Screen, Spacer } from '@/components/Screen';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { Overline, Text } from '@/components/Text';
-import { usePriceHistory, useToken } from '@/features/market/queries';
+import { useMarketToken, usePriceHistory, useToken } from '@/features/market/queries';
 import type { PriceRange, TokenSymbol } from '@/features/market/types';
 import { useNetworkId, useSelectedAccount } from '@/features/wallet/store';
-import { formatChf, formatNumber } from '@/lib/format';
+import { formatChf, formatNumber, priceDecimals } from '@/lib/format';
 import { getNetwork } from '@/lib/networks';
 import { colors, radii } from '@/theme/tokens';
 
@@ -39,12 +39,13 @@ export default function TokenDetail() {
   const account = useSelectedAccount();
   const network = getNetwork(useNetworkId());
   const token = useToken(account.index, symbol);
+  const market = useMarketToken(symbol);
   const [range, setRange] = useState<PriceRange>('1M');
   const [hover, setHover] = useState<number | null>(null);
   const [watched, setWatched] = useState(false);
   const { data: points = [] } = usePriceHistory(symbol, range);
 
-  const name = token?.name ?? symbol;
+  const name = token?.name ?? market?.name ?? symbol;
   const n = points.length;
   const first = points[0]?.value ?? 0;
   const last = points[n - 1]?.value ?? 0;
@@ -53,6 +54,7 @@ export default function TokenDetail() {
   const diff = ref - first;
   const pct = first ? (diff / first) * 100 : 0;
   const up = diff >= 0;
+  const decimals = priceDecimals(last);
 
   return (
     <Screen paddingHorizontal={0} gap={16}>
@@ -60,7 +62,12 @@ export default function TokenDetail() {
         <NavHeader
           center={
             <View style={styles.title}>
-              <TokenMark label={token?.mark ?? symbol} color={token?.color ?? colors.primary} size={28} fontSize={10} />
+              <TokenMark
+                label={market?.mark ?? symbol}
+                color={market?.color ?? colors.primary}
+                size={28}
+                fontSize={10}
+              />
               <Text accessibilityRole="header" size={17} weight={700}>
                 {name}
               </Text>
@@ -87,12 +94,12 @@ export default function TokenDetail() {
             CHF
           </Text>
           <Text size={40} weight={700} tracking={-0.02} lineHeight={1} tabular>
-            {formatNumber(ref)}
+            {formatNumber(ref, decimals)}
           </Text>
         </View>
         <View style={styles.changeRow}>
           <Text size={14} weight={600} color={up ? colors.positive : colors.accentText}>
-            {up ? '+ ' : '− '}CHF {formatNumber(Math.abs(diff))} ({Math.abs(pct).toFixed(2)}%)
+            {up ? '+ ' : '− '}CHF {formatNumber(Math.abs(diff), decimals)} ({Math.abs(pct).toFixed(2)}%)
           </Text>
           <Text size={14} color={colors.textMuted}>
             {RANGE_NAMES[range]}
@@ -106,7 +113,7 @@ export default function TokenDetail() {
             points={points}
             hover={hover}
             onHover={setHover}
-            accessibilityLabel={`${name} price in CHF, ${RANGE_NAMES[range].toLowerCase()}, from CHF ${formatNumber(first)} to CHF ${formatNumber(last)}`}
+            accessibilityLabel={`${name} price in CHF, ${RANGE_NAMES[range].toLowerCase()}, from CHF ${formatNumber(first, decimals)} to CHF ${formatNumber(last, decimals)}`}
           />
         ) : (
           <View style={styles.chartPlaceholder} />
