@@ -1,11 +1,13 @@
 import { formatEther, type Address, type Hash } from 'viem';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { create } from 'zustand';
 
-import { useNetworkId, useWallet } from '@/features/wallet/store';
+import { useNetworkId, useSelectedAccount, useWallet, type AccountMeta } from '@/features/wallet/store';
 import { DEMO_MODE, MARKET_DATA } from '@/lib/config';
-import type { NetworkId } from '@/lib/networks';
+import { formatNumber } from '@/lib/format';
+import { getNetwork, networks, type NetworkId } from '@/lib/networks';
+import { fetchTransactions, type ChainTx } from '@/services/blockscout/historyApi';
 import { estimateFees, getNativeBalance, publicClient } from '@/services/chain';
 import { colors } from '@/theme/tokens';
 
@@ -119,7 +121,7 @@ export function usePortfolio(accountIndex: number) {
   const ethChf = quotes.bySymbol.get('ETH')?.price ?? null;
 
   const live = useQuery({
-    queryKey: ['portfolio', accountIndex, networkId, ethChf],
+    queryKey: ['portfolio', accountIndex, address, networkId, ethChf],
     queryFn: () => (address ? liveNativePortfolio(networkId, address, ethChf) : Promise.resolve(EMPTY_PORTFOLIO)),
     enabled: !DEMO_MODE,
     staleTime: 5_000,
@@ -204,6 +206,8 @@ export function usePriceHistory(symbol: TokenSymbol, range: PriceRange) {
   });
 }
 
+const NO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
 let localSeq = 0;
 /** Id for a locally submitted transaction that has no hash yet. */
 export const localActivityId = () => `local-${Date.now()}-${localSeq++}`;
@@ -255,12 +259,95 @@ function useActivityConfirmations() {
   }, [items, update]);
 }
 
+/**
+ * An on-chain transaction as seen by `account`: a send if it signed it,
+ * otherwise a receive. Valued at today's price (no historical prices yet).
+ * Exported for tests.
+ */
+export function chainTxToActivity(tx: ChainTx, account: AccountMeta, networkId: NetworkId, ethChf: number | null): ActivityItem {
+  const { symbol, decimals } = getNetwork(networkId).chain.nativeCurrency;
+  const outgoing = tx.from.toLowerCase() === account.address.toLowerCase();
+  const amount = Number(tx.value) / 10 ** decimals;
+  // Only ETH-denominated networks can be priced with the ETH quote.
+  const price = symbol === 'ETH' ? ethChf : null;
+  const fee = Number(tx.feeWei) / 10 ** decimals;
+  const status = tx.status;
+  return {
+    id: tx.hash,
+    kind: outgoing ? 'send' : 'receive',
+    title: outgoing ? `Sent ${symbol}` : `Received ${symbol}`,
+    status,
+    amount: amount === 0 ? `0 ${symbol}` : `${outgoing ? '−' : '+'} ${formatNumber(amount, 4)} ${symbol}`,
+    valueChf: price === null ? null : amount * price,
+    timestamp: tx.timestamp,
+    hash: tx.hash,
+    accountIndex: account.index,
+    networkId,
+    counterparty: outgoing ? (tx.to ? { address: tx.to } : undefined) : { address: tx.from },
+    fee: outgoing ? { native: `${formatNumber(fee, 5)} ${symbol}`, chf: price === null ? null : fee * price } : undefined,
+    failureReason: status === 'failed' ? 'The transaction was reverted on-chain.' : undefined,
+  };
+}
+
+/**
+ * Zero-value transactions sent to the account by someone else: contract calls
+ * that merely mention it, mostly address-poisoning spam. Exported for tests.
+ */
+export function isIncomingSpam(tx: ChainTx, account: AccountMeta): boolean {
+  return tx.value === 0n && tx.from.toLowerCase() !== account.address.toLowerCase();
+}
+
+/** Pending sends not indexed yet come first; anything on-chain wins over its local copy. */
+export function mergeActivity(local: ActivityItem[], chain: ActivityItem[]): ActivityItem[] {
+  const contacts = new Map(local.flatMap((i) => (i.hash && i.counterparty?.label ? [[i.hash.toLowerCase(), i.counterparty]] : [])));
+  const onChain = new Set(chain.map((i) => i.hash?.toLowerCase()));
+  const enriched = chain.map((i) => {
+    const counterparty = contacts.get(i.hash!.toLowerCase());
+    return counterparty ? { ...i, counterparty } : i;
+  });
+  return [...local.filter((i) => !i.hash || !onChain.has(i.hash.toLowerCase())), ...enriched];
+}
+
+/**
+ * The selected account's activity. Live mode reads its history on every
+ * network from the explorer, so receives show up and nothing is lost when the
+ * app restarts; sends from this device show immediately, before they're indexed.
+ */
 export function useActivity() {
   useActivityConfirmations();
-  const local = useLocalActivity((s) => s.items);
-  const remote = useQuery({ queryKey: ['activity'], queryFn: async () => demoActivity });
-  // Live mode shows only real (locally submitted) transactions.
-  return { ...remote, data: DEMO_MODE ? [...local, ...(remote.data ?? [])] : local };
+  const account = useSelectedAccount();
+  const allLocal = useLocalActivity((s) => s.items);
+  const ethChf = useQuotes().bySymbol.get('ETH')?.price ?? null;
+  const demo = useQuery({ queryKey: ['activity'], queryFn: async () => demoActivity, enabled: DEMO_MODE });
+
+  const history = useQueries({
+    queries: networks.map((n) => ({
+      queryKey: ['history', account.address, n.id],
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchTransactions(n.id, account.address, signal),
+      enabled: !DEMO_MODE && account.address !== NO_ADDRESS,
+      staleTime: 15_000,
+      refetchInterval: 30_000,
+      retry: 1,
+    })),
+  });
+
+  const local = allLocal.filter((i) => i.accountIndex === account.index);
+  const chain = history.flatMap((q, i) =>
+    (q.data ?? []).filter((tx) => !isIncomingSpam(tx, account)).map((tx) => chainTxToActivity(tx, account, networks[i]!.id, ethChf)),
+  );
+  const refetch = () => {
+    if (DEMO_MODE) demo.refetch();
+    else history.forEach((q) => q.refetch());
+  };
+  const isRefetching = DEMO_MODE ? demo.isRefetching : history.some((q) => q.isRefetching);
+
+  if (DEMO_MODE) return { data: [...allLocal, ...(demo.data ?? [])], refetch, isRefetching, isLoading: demo.isLoading };
+  return {
+    data: mergeActivity(local, chain),
+    refetch,
+    isRefetching,
+    isLoading: history.some((q) => q.isLoading),
+  };
 }
 
 export type ActivityGroup = { label: string; items: ActivityItem[] };

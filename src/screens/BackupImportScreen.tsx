@@ -9,6 +9,7 @@ import { Screen, Spacer } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { openBackup, type BackupFile } from '@/features/wallet/backup';
 import { WrongPasswordError } from '@/features/wallet/vault';
+import { closeKeyboard } from '@/lib/keyboard';
 import { colors, radii } from '@/theme/tokens';
 
 type Props = {
@@ -36,6 +37,7 @@ export function BackupImportScreen({ fileName, backup, onCancel, onUnlocked }: P
     setBusy(true);
     setError(null);
     try {
+      await closeKeyboard();
       const phrase = await openBackup(backup, password);
       setPassword('');
       onUnlocked(phrase);

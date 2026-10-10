@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
 
 import { Button } from '@/components/Button';
 import { NavHeader } from '@/components/Header';
@@ -45,6 +45,15 @@ function AccountRow({ account, selected, onPress }: { account: AccountMeta; sele
       <Text size={14} weight={600}>
         {fiat.format(data?.totalChf ?? 0)}
       </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Rename ${account.name}`}
+        hitSlop={8}
+        onPress={() => router.push({ pathname: '/account-name', params: { index: String(account.index) } })}
+        style={styles.rename}
+      >
+        <Icon name="edit" size={18} color={colors.iconMuted} strokeWidth={2} />
+      </Pressable>
     </Pressable>
   );
 }
@@ -54,8 +63,6 @@ export default function Accounts() {
   const meta = useWallet((s) => s.meta);
   const selectAccount = useWallet((s) => s.selectAccount);
   const selectNetwork = useWallet((s) => s.selectNetwork);
-  const addAccount = useWallet((s) => s.addAccount);
-  const [adding, setAdding] = useState(false);
 
   // Signed out: this screen is about to unmount.
   if (!meta) return null;
@@ -90,15 +97,8 @@ export default function Accounts() {
           height={44}
           fontSize={14}
           style={styles.flex}
-          loading={adding}
-          onPress={async () => {
-            setAdding(true);
-            try {
-              await addAccount();
-            } finally {
-              setAdding(false);
-            }
-          }}
+          // Each account gets its own recovery phrase: create or import one.
+          onPress={() => router.replace('/add-account')}
         />
         {/* Hardware wallet pairing (Ledger) has no flow in the design yet. */}
         <Button
@@ -163,6 +163,7 @@ const styles = StyleSheet.create({
   },
   accountRow: { minHeight: 60 },
   accountMain: { flex: 1, gap: 2 },
+  rename: { width: 36, height: 36, marginRight: -8, alignItems: 'center', justifyContent: 'center' },
   accountActions: { flexDirection: 'row', gap: 8, paddingTop: 4, paddingHorizontal: 24, paddingBottom: 8 },
   band: { height: 8, backgroundColor: colors.surfaceMuted },
   networkRow: { minHeight: 52, backgroundColor: colors.surface },
