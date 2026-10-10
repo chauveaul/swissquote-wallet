@@ -8,6 +8,7 @@ export const KIND_ICON: Record<ActivityKind, IconName> = {
   receive: 'receive',
   swap: 'swap',
   approve: 'check',
+  buy: 'plus',
 };
 
 export const KIND_LABEL: Record<ActivityKind, string> = {
@@ -15,7 +16,21 @@ export const KIND_LABEL: Record<ActivityKind, string> = {
   receive: 'Receive',
   swap: 'Swap',
   approve: 'Token approval',
+  buy: 'Buy',
 };
+
+type Fiat = { format: (chf: number, decimals?: number) => string };
+
+/** "EUR 768.61", or "Fee EUR 0.89" for fee-only entries such as approvals. */
+export function activityValueLabel(item: ActivityItem, fiat: Fiat): string {
+  return `${item.valueIsFee ? 'Fee ' : ''}${fiat.format(item.valueChf)}`;
+}
+
+/** "0.00042 ETH · EUR 1.29" */
+export function activityFeeLabel(item: ActivityItem, fiat: Fiat): string | null {
+  if (!item.fee) return null;
+  return item.fee.native ? `${item.fee.native} · ${fiat.format(item.fee.chf)}` : fiat.format(item.fee.chf);
+}
 
 /** Status text and colours shared by the Activity list and the details screen. */
 export function activityPresentation(item: ActivityItem) {

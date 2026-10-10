@@ -9,14 +9,14 @@ import { TokenMark } from '@/components/Marks';
 import { Overline, Text } from '@/components/Text';
 import { usePortfolio } from '@/features/market/queries';
 import type { TokenHolding } from '@/features/market/types';
+import { useFiat } from '@/features/settings/useFiat';
 import { useNetworkId, useSelectedAccount } from '@/features/wallet/store';
-import { formatChf, formatNumber, formatPercentChange, signPrefix, truncateAddress } from '@/lib/format';
+import { formatNumber, formatPercentChange, signPrefix, truncateAddress } from '@/lib/format';
 import { getNetwork } from '@/lib/networks';
 import { colors, radii } from '@/theme/tokens';
 
 const ACTIONS: { label: string; icon: IconName; href?: Href; primary?: boolean }[] = [
-  // Buy (on-ramp) has no screen in the design yet.
-  { label: 'Buy', icon: 'plus' },
+  { label: 'Buy', icon: 'plus', href: '/buy' },
   { label: 'Swap', icon: 'swap', href: '/swap' },
   { label: 'Send', icon: 'send', href: '/send', primary: true },
   { label: 'Receive', icon: 'receive', href: '/receive' },
@@ -29,10 +29,11 @@ function changeColor(pct: number) {
 }
 
 function TokenRow({ token }: { token: TokenHolding }) {
+  const fiat = useFiat();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${token.name}, ${formatNumber(token.amount, token.displayDecimals)} ${token.symbol}, ${formatChf(token.valueChf)}`}
+      accessibilityLabel={`${token.name}, ${formatNumber(token.amount, token.displayDecimals)} ${token.symbol}, ${fiat.format(token.valueChf)}`}
       onPress={() => router.push({ pathname: '/token/[symbol]', params: { symbol: token.symbol } })}
       style={({ pressed }) => [styles.tokenRow, pressed && { backgroundColor: colors.surfaceMuted }]}
     >
@@ -47,7 +48,7 @@ function TokenRow({ token }: { token: TokenHolding }) {
       </View>
       <View style={styles.tokenValue}>
         <Text size={16} weight={600}>
-          {formatChf(token.valueChf)}
+          {fiat.format(token.valueChf)}
         </Text>
         <Text size={13} weight={600} color={changeColor(token.change24hPct)}>
           {formatPercentChange(token.change24hPct)}
@@ -59,6 +60,7 @@ function TokenRow({ token }: { token: TokenHolding }) {
 
 /** 04 Wallet home */
 export default function Home() {
+  const fiat = useFiat();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const account = useSelectedAccount();
@@ -98,8 +100,12 @@ export default function Home() {
           </Text>
         </Pressable>
 
-        {/* QR scanning (expo-camera) is not part of this iteration. */}
-        <Pressable accessibilityRole="button" accessibilityLabel="Scan QR code" style={styles.iconButton}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Scan QR code"
+          onPress={() => router.push('/scan')}
+          style={styles.iconButton}
+        >
           <Icon name="scan" size={22} />
         </Pressable>
       </View>
@@ -117,15 +123,15 @@ export default function Home() {
           <Overline>Total balance</Overline>
           <View style={styles.balanceRow}>
             <Text size={20} weight={600} color={colors.textSecondary}>
-              CHF
+              {fiat.code}
             </Text>
             <Text size={44} weight={700} tracking={-0.02} lineHeight={1} tabular>
-              {formatNumber(portfolio?.totalChf ?? 0)}
+              {fiat.number(portfolio?.totalChf ?? 0)}
             </Text>
           </View>
           <View style={styles.changeRow}>
             <Text size={14} weight={600} color={changeColor(change)}>
-              {signPrefix(change)}CHF {formatNumber(Math.abs(change))} ({Math.abs(portfolio?.changeTodayPct ?? 0).toFixed(2)}%)
+              {signPrefix(change)}{fiat.format(Math.abs(change))} ({Math.abs(portfolio?.changeTodayPct ?? 0).toFixed(2)}%)
             </Text>
             <Text size={14} color={colors.textMuted}>
               Today

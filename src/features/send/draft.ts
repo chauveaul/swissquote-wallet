@@ -1,7 +1,7 @@
 import { getAddress, isAddress, type Address } from 'viem';
 import { create } from 'zustand';
 
-import { demoContacts, demoQuotes } from '@/features/market/fixtures';
+import { demoQuotes } from '@/features/market/fixtures';
 import type { Contact, FeeSpeed } from '@/features/market/types';
 
 /** Transfer being composed on Send and confirmed on Review. */
@@ -41,9 +41,9 @@ export function parseRecipient(input: string): Address | null {
   return getAddress(input);
 }
 
-export function findContact(address: Address | null): Contact | null {
+export function findContact(contacts: readonly Contact[], address: Address | null): Contact | null {
   if (!address) return null;
-  return demoContacts.find((c) => c.address.toLowerCase() === address.toLowerCase()) ?? null;
+  return contacts.find((c) => c.address.toLowerCase() === address.toLowerCase()) ?? null;
 }
 
 export function feeFor(speed: FeeSpeed) {

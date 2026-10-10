@@ -9,13 +9,15 @@ import { TokenPill } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { usePortfolio } from '@/features/market/queries';
+import { useFiat } from '@/features/settings/useFiat';
 import { QUOTE_TTL_S, quoteSwap, useSwapDraft } from '@/features/swap/quote';
 import { useSelectedAccount } from '@/features/wallet/store';
-import { formatChf, formatNumber } from '@/lib/format';
+import { formatNumber } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
 /** 08 Swap */
 export default function Swap() {
+  const fiat = useFiat();
   const account = useSelectedAccount();
   const { data: portfolio } = usePortfolio(account.index);
   const { flipped, pay, setFlipped, setPay } = useSwapDraft();
@@ -39,7 +41,7 @@ export default function Swap() {
     ['Rate', quote.rateLabel],
     ['Best of quotes', quote.providers],
     ['Max. slippage', `${quote.slippagePct}%`],
-    ['Network fee', formatChf(quote.networkFeeChf)],
+    ['Network fee', fiat.format(quote.networkFeeChf)],
     ['Swissquote fee', quote.swissquoteFee],
   ];
 
@@ -89,7 +91,7 @@ export default function Swap() {
             <TokenPill symbol={from.symbol} color={colors.token[from.symbol]} />
           </View>
           <Text size={14} color={colors.textSecondary}>
-            ≈ {formatChf(payChf)}
+            ≈ {fiat.format(payChf)}
           </Text>
         </View>
 
@@ -114,7 +116,7 @@ export default function Swap() {
             <TokenPill symbol={to.symbol} color={colors.token[to.symbol]} />
           </View>
           <Text size={14} color={colors.textSecondary}>
-            ≈ {formatChf(receiveChf)}
+            ≈ {fiat.format(receiveChf)}
           </Text>
         </View>
       </View>

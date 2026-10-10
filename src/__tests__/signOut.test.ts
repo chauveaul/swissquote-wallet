@@ -35,7 +35,7 @@ describe('sign out', () => {
     await createFrom(FIRST, 'first-password');
     const firstAddress = useWallet.getState().meta!.accounts[0]!.address;
     useLocalActivity.getState().add({
-      id: 'x', kind: 'send', title: 'Sent ETH', status: 'pending', amount: '', fiat: '', timestamp: 0,
+      id: 'x', kind: 'send', title: 'Sent ETH', status: 'pending', amount: '', valueChf: 0, timestamp: 0,
       accountIndex: 0, networkId: 'eth',
     });
 

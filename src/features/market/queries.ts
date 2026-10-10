@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 import { DEMO_MODE } from '@/lib/config';
 
-import { demoActivity, demoPortfolio, demoPriceSeries, DEMO_NOW } from './fixtures';
+import { demoActivity, demoPortfolio, demoPriceSeries, demoSpotChf, DEMO_NOW } from './fixtures';
 import type { ActivityItem, MarketToken, Portfolio, PriceRange, TokenSymbol } from './types';
 
 /*
@@ -13,13 +13,6 @@ import type { ActivityItem, MarketToken, Portfolio, PriceRange, TokenSymbol } fr
 
 /** Demo data is anchored to the design's date so "Today" groups line up. */
 export const appNow = () => (DEMO_MODE ? DEMO_NOW : Date.now());
-
-/** Latest CHF price per token; ETH uses the design chart's closing price. */
-function demoSpotChf(symbol: TokenSymbol): number {
-  if (symbol === 'ETH') return 2907.3;
-  const t = demoPortfolio.tokens.find((x) => x.symbol === symbol);
-  return t && t.amount ? t.valueChf / t.amount : 1;
-}
 
 const SEED_OFFSET: Record<TokenSymbol, number> = { ETH: 0, WBTC: 101, USDC: 202, LINK: 303 };
 

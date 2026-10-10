@@ -1,6 +1,6 @@
 import { findContact, parseRecipient, sanitizeAmount } from '@/features/send/draft';
 import { groupActivity } from '@/features/market/queries';
-import { demoActivity, DEMO_NOW } from '@/features/market/fixtures';
+import { demoActivity, demoContacts, DEMO_NOW } from '@/features/market/fixtures';
 
 describe('send draft', () => {
   it('accepts checksummed and lower-case addresses', () => {
@@ -19,7 +19,7 @@ describe('send draft', () => {
   });
 
   it('matches saved contacts case-insensitively', () => {
-    expect(findContact(parseRecipient('0x8ba1f109551bd432803012645ac136ddd64dba72'))?.name).toBe('Mia (Ledger)');
+    expect(findContact(demoContacts, parseRecipient('0x8ba1f109551bd432803012645ac136ddd64dba72'))?.name).toBe('Mia (Ledger)');
   });
 
   it('sanitizes amount input', () => {

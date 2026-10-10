@@ -80,6 +80,9 @@ src/
 | 08 Swap | `(wallet)/swap` |
 | 09 Accounts & networks | `(wallet)/accounts` (modal) |
 | — Review swap *(added)* | `(wallet)/swap-review` |
+| — Buy · Review purchase *(added)* | `(wallet)/buy`, `(wallet)/buy-review` |
+| — QR scanner *(added)* | `(wallet)/scan` (full-screen modal) |
+| — Settings detail screens *(added)* | `(wallet)/security`, `connected-sites`, `currency`, `contacts`, `contact`, `help`, `about` |
 | — Transaction details *(added)* | `(wallet)/transaction/[id]` |
 | — Explore *(added, see below)* | `(wallet)/(tabs)/explore` |
 | — Sign out *(added)* | `(wallet)/sign-out`, and inline on `unlock` |
@@ -95,7 +98,12 @@ src/
 - **Content-box sizes** – several design boxes are CSS content-box (e.g. 52px inputs render 55px). The app matches the rendered size.
 - **Design sample address** – `0x8Ba1…BA72` fails EIP-55; the fixture uses the correctly checksummed `0x8ba1…BA72`.
 - **Placeholders kept as-is** – Swissquote logo box, `[N] providers compared`, `[FEE %]`, legal URLs (`src/lib/config.ts`).
-- **No screen in the design yet** (tappable but inert): Buy, QR scanner, swap settings, hardware wallet, custom network, network filter, most Settings rows, Swissquote account linking.
+- **Buy** – not drawn; CHF purchase funded from the linked Swissquote account, delivered to the selected account, with a 30 s quote and a review step (demo only, like swaps).
+- **QR scanner** – not drawn; `expo-camera` scanner opened by every scan icon. Accepts bare addresses and EIP-681 `ethereum:` links (checksum and network enforced, token calls and ENS rejected) and only pre-fills Send.
+- **Settings detail screens** – not drawn. Biometrics on/off (re-confirmed with biometrics/passcode) and an auto-lock delay the app enforces; connected sites (demo sessions until WalletConnect is integrated) with disconnect; display currency (CHF/EUR/USD/GBP, demo FX rates, amounts are stored in CHF and converted for display, Buy stays in CHF); an address book used by Send's saved-contact check; help FAQ; about. Support URLs are placeholders in `src/lib/config.ts`.
+- **Send recipients** – not drawn; an "Accounts & contacts" chip on the To row opens a searchable sheet of your other accounts and saved contacts. Send and Review label recognised recipients ("Your account", "Saved contact") and block sending to the account you're sending from.
+- **Activity network filter** – the "All networks" chip opens a network picker and filters the list.
+- **No screen in the design yet** (tappable but inert): swap settings, hardware wallet, custom network, Swissquote account linking.
 - **Review swap** – the design links "Review swap" to the Review screen; it is adapted for swaps (pay/receive, minimum received after slippage, fees). Quotes expire after 30 s and must be refreshed before confirming.
 - **Transaction details** – not drawn; tapping an Activity row opens type, date, account, full counterparty address (copyable), swap breakdown, network fee, failure reason and an explorer link when a hash exists.
 - **Swap execution** needs a DEX aggregator; in demo mode a confirmed swap is recorded locally, and in live mode it is disabled.

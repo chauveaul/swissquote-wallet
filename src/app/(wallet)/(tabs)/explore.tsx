@@ -2,14 +2,16 @@ import { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
 import { TokenMark } from '@/components/Marks';
 import { Overline, Text } from '@/components/Text';
 import { useMarkets } from '@/features/market/queries';
+import { useFiat } from '@/features/settings/useFiat';
 import type { MarketToken } from '@/features/market/types';
-import { formatNumber, formatPercentChange, priceDecimals } from '@/lib/format';
+import { formatPercentChange } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
 function changeColor(pct: number) {
@@ -19,10 +21,11 @@ function changeColor(pct: number) {
 }
 
 function MarketRow({ token }: { token: MarketToken }) {
+  const fiat = useFiat();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${token.name}, CHF ${formatNumber(token.priceChf, priceDecimals(token.priceChf))}, ${formatPercentChange(token.change24hPct)} today`}
+      accessibilityLabel={`${token.name}, ${fiat.price(token.priceChf)}, ${formatPercentChange(token.change24hPct)} today`}
       onPress={() => router.push({ pathname: '/token/[symbol]', params: { symbol: token.symbol } })}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceMuted }]}
     >
@@ -37,7 +40,7 @@ function MarketRow({ token }: { token: MarketToken }) {
       </View>
       <View style={styles.value}>
         <Text size={16} weight={600}>
-          CHF {formatNumber(token.priceChf, priceDecimals(token.priceChf))}
+          {fiat.price(token.priceChf)}
         </Text>
         <Text size={13} weight={600} color={changeColor(token.change24hPct)}>
           {formatPercentChange(token.change24hPct)}
@@ -89,30 +92,35 @@ export default function Explore() {
         </View>
       </View>
 
-      <FlatList
-        data={results}
-        keyExtractor={(t) => t.symbol}
-        renderItem={({ item }) => <MarketRow token={item} />}
-        ListHeaderComponent={
-          <Overline accessibilityRole="header" style={styles.sectionLabel}>
-            Markets
-          </Overline>
-        }
-        ListEmptyComponent={
-          <Text size={14} color={colors.textMuted} style={styles.empty}>
-            No tokens match “{query.trim()}”.
-          </Text>
-        }
-        keyboardShouldPersistTaps="handled"
-        onRefresh={refetch}
-        refreshing={isRefetching}
-      />
+      {/* Shrinks the list above the keyboard so every result stays reachable. */}
+      <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.flex}>
+        <FlatList
+          data={results}
+          keyExtractor={(t) => t.symbol}
+          renderItem={({ item }) => <MarketRow token={item} />}
+          ListHeaderComponent={
+            <Overline accessibilityRole="header" style={styles.sectionLabel}>
+              Markets
+            </Overline>
+          }
+          ListEmptyComponent={
+            <Text size={14} color={colors.textMuted} style={styles.empty}>
+              No tokens match “{query.trim()}”.
+            </Text>
+          }
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          onRefresh={refetch}
+          refreshing={isRefetching}
+        />
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
+  flex: { flex: 1 },
   header: { paddingTop: 24, paddingHorizontal: 24, paddingBottom: 8 },
   searchWrap: { paddingHorizontal: 24, paddingTop: 8 },
   search: {

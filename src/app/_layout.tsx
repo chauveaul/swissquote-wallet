@@ -10,7 +10,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { KeyboardProvider, KeyboardToolbar } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useWallet } from '@/features/wallet/store';
@@ -19,6 +19,11 @@ import { queryClient } from '@/lib/queryClient';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+const KEYBOARD_TOOLBAR_THEME = {
+  light: { primary: colors.ink, disabled: colors.borderInput, background: colors.surfaceMuted, ripple: colors.border },
+  dark: { primary: colors.surface, disabled: colors.textMuted, background: colors.dark.field, ripple: colors.dark.border },
+};
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -90,6 +95,9 @@ export default function RootLayout() {
               <Stack.Screen name="(wallet)" options={{ animation: 'fade' }} />
             </Stack.Protected>
           </Stack>
+          {/* Previous / next / Done above every keyboard, so number pads (which
+              have no return key) can always be closed. */}
+          <KeyboardToolbar theme={KEYBOARD_TOOLBAR_THEME} doneText="Done" />
         </QueryClientProvider>
       </KeyboardProvider>
     </SafeAreaProvider>

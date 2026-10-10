@@ -7,7 +7,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Overline, Text } from '@/components/Text';
 import { useWallet } from '@/features/wallet/store';
-import { AUTO_LOCK_MS, DEMO_MODE } from '@/lib/config';
+import { formatAutoLock } from '@/lib/autoLock';
 import { networks } from '@/lib/networks';
 import { colors, radii } from '@/theme/tokens';
 
@@ -17,16 +17,19 @@ type Row = { label: string; value?: string; href?: Href; destructive?: boolean }
 export default function Settings() {
   const insets = useSafeAreaInsets();
   const lock = useWallet((s) => s.lock);
-  const biometrics = useWallet((s) => s.meta?.biometrics ?? false);
+  const meta = useWallet((s) => s.meta);
+  const biometrics = meta?.biometrics ?? false;
+  const autoLock = formatAutoLock(meta?.autoLockMs ?? 60_000);
+  const contacts = meta?.contacts.length ?? 0;
 
-  // Rows without `href` have no screen in the design yet.
+  // Destination screens other than "Reveal recovery phrase" and "Networks" aren't drawn in the design.
   const sections: { label: string; rows: Row[] }[] = [
     {
       label: 'Security & privacy',
       rows: [
         { label: 'Reveal recovery phrase', href: '/recovery-phrase' },
-        { label: 'Biometrics & auto-lock', value: `${biometrics ? '' : 'Off · '}${AUTO_LOCK_MS / 60_000} min` },
-        { label: 'Connected sites', value: DEMO_MODE ? '3' : '0' },
+        { label: 'Biometrics & auto-lock', value: `${biometrics ? '' : 'Off · '}${autoLock}`, href: '/security' },
+        { label: 'Connected sites', value: String(meta?.connectedSites.length ?? 0), href: '/connected-sites' },
         // Not in the design: removes the wallet so a different one can be used.
         { label: 'Sign out', href: '/sign-out', destructive: true },
       ],
@@ -34,14 +37,17 @@ export default function Settings() {
     {
       label: 'General',
       rows: [
-        { label: 'Display currency', value: 'CHF' },
+        { label: 'Display currency', value: meta?.currency ?? 'CHF', href: '/currency' },
         { label: 'Networks', value: String(networks.length), href: '/accounts' },
-        { label: 'Contacts' },
+        { label: 'Contacts', value: contacts ? String(contacts) : undefined, href: '/contacts' },
       ],
     },
     {
       label: 'Support',
-      rows: [{ label: 'Help centre' }, { label: 'About' }],
+      rows: [
+        { label: 'Help centre', href: '/help' },
+        { label: 'About', href: '/about' },
+      ],
     },
   ];
 

@@ -18,6 +18,8 @@ type Props = {
   hover: number | null;
   onHover: (index: number | null) => void;
   accent?: string;
+  /** Currency code shown in the tooltip; `points` are already in this currency. */
+  currency?: string;
   accessibilityLabel: string;
 };
 
@@ -25,7 +27,7 @@ type Props = {
  * Line + area chart with dashed gridlines and a scrub tooltip. Geometry mirrors
  * the design prototype (8% vertical padding, gridlines at min / mid / max).
  */
-export function PriceChart({ points, hover, onHover, accent = colors.accent, accessibilityLabel }: Props) {
+export function PriceChart({ points, hover, onHover, accent = colors.accent, currency = 'CHF', accessibilityLabel }: Props) {
   const [width, setWidth] = useState(342);
   const n = points.length;
 
@@ -96,7 +98,7 @@ export function PriceChart({ points, hover, onHover, accent = colors.accent, acc
               {points[active]!.label}
             </Text>
             <Text size={14} weight={700} color={colors.surface}>
-              CHF {formatNumber(points[active]!.value, geo.decimals)}
+              {currency} {formatNumber(points[active]!.value, geo.decimals)}
             </Text>
           </View>
         </>

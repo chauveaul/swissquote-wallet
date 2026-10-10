@@ -59,14 +59,20 @@ export function Screen({
       {scroll ? (
         // Scrolls the focused input above the keyboard and keeps the rest of
         // the form reachable while the keyboard is open (iOS and Android).
+        // "layout" mode lets the <Spacer /> shrink, so the bottom action
+        // (Review, Confirm…) rides up above the keyboard instead of behind it.
         <KeyboardAwareScrollView
+          mode="layout"
           style={styles.root}
-          contentContainerStyle={content}
+          contentContainerStyle={styles.grow}
           bottomOffset={KEYBOARD_GAP}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
-          {children}
+          {/* Padding and gap live here, not on the scroll content: the keyboard
+              spacer is appended after this view and must not get a gap. */}
+          <View style={[styles.grow, content]}>{children}</View>
         </KeyboardAwareScrollView>
       ) : (
         <View style={[styles.root, content]}>{children}</View>
@@ -83,4 +89,5 @@ export function Spacer() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  grow: { flexGrow: 1 },
 });

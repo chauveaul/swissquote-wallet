@@ -12,7 +12,8 @@
       "bundleIdentifier": "com.swissquote.cryptowallet",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Use biometrics to unlock your wallet and approve transactions.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Scan QR codes to fill in wallet addresses."
       }
     },
     "android": {
@@ -55,7 +56,15 @@
           "imageWidth": 120
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan QR codes to fill in wallet addresses.",
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

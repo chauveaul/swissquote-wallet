@@ -8,13 +8,15 @@ import { AccountAvatar, TokenMark } from '@/components/Marks';
 import { Screen } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { usePortfolio } from '@/features/market/queries';
+import { useFiat } from '@/features/settings/useFiat';
 import { accountColor } from '@/features/wallet/accountColor';
 import { useWallet, type AccountMeta } from '@/features/wallet/store';
-import { formatChf, truncateAddress } from '@/lib/format';
+import { truncateAddress } from '@/lib/format';
 import { networks } from '@/lib/networks';
 import { colors } from '@/theme/tokens';
 
 function AccountRow({ account, selected, onPress }: { account: AccountMeta; selected: boolean; onPress: () => void }) {
+  const fiat = useFiat();
   const { data } = usePortfolio(account.index);
   const color = accountColor(account.index);
   return (
@@ -41,7 +43,7 @@ function AccountRow({ account, selected, onPress }: { account: AccountMeta; sele
         </Text>
       </View>
       <Text size={14} weight={600}>
-        {formatChf(data?.totalChf ?? 0)}
+        {fiat.format(data?.totalChf ?? 0)}
       </Text>
     </Pressable>
   );

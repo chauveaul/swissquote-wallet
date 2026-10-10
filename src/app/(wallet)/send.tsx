@@ -7,31 +7,49 @@ import { NavHeader } from '@/components/Header';
 import { Icon } from '@/components/Icon';
 import { AccountAvatar, TokenPill } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
+import { RecipientPicker } from '@/components/RecipientPicker';
 import { Overline, Text } from '@/components/Text';
 import { demoQuotes } from '@/features/market/fixtures';
 import { useToken } from '@/features/market/queries';
-import { feeFor, findContact, parseRecipient, useSendDraft } from '@/features/send/draft';
+import { useFiat } from '@/features/settings/useFiat';
+import type { Contact } from '@/features/market/types';
+import type { AccountMeta } from '@/features/wallet/store';
+import { feeFor, parseRecipient, useSendDraft } from '@/features/send/draft';
+import { identifyRecipient } from '@/features/send/recipient';
 import { accountColor } from '@/features/wallet/accountColor';
-import { useSelectedAccount } from '@/features/wallet/store';
-import { formatChf, formatNumber, truncateAddress } from '@/lib/format';
+import { useSelectedAccount, useWallet } from '@/features/wallet/store';
+import { formatNumber, truncateAddress } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
 /** 05 Send */
+const NO_CONTACTS: Contact[] = [];
+const NO_ACCOUNTS: AccountMeta[] = [];
+
 export default function Send() {
+  const fiat = useFiat();
   const account = useSelectedAccount();
   const eth = useToken(account.index, 'ETH');
   const { to, amount, speed, setTo, setAmount } = useSendDraft();
   const [submitted, setSubmitted] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   const balance = eth?.amount ?? 0;
   const recipient = parseRecipient(to);
-  const contact = findContact(recipient);
+  const contacts = useWallet((s) => s.meta?.contacts ?? NO_CONTACTS);
+  const accounts = useWallet((s) => s.meta?.accounts ?? NO_ACCOUNTS);
+  const known = identifyRecipient(recipient, account.index, accounts, contacts);
   const value = Number(amount) || 0;
   const fee = feeFor(speed).eth;
 
   const amountError =
     value <= 0 ? 'Enter an amount.' : value + fee > balance ? 'Insufficient balance to cover amount and network fee.' : null;
-  const toError = !to ? 'Enter a recipient address.' : !recipient ? 'This isn’t a valid Ethereum address.' : null;
+  const toError = !to
+    ? 'Enter a recipient address.'
+    : !recipient
+      ? 'This isn’t a valid Ethereum address.'
+      : known?.kind === 'self'
+        ? 'This is the account you’re sending from. Choose another recipient.'
+        : null;
 
   const review = () => {
     setSubmitted(true);
@@ -62,7 +80,20 @@ export default function Send() {
       </View>
 
       <View style={styles.section}>
-        <Overline>To</Overline>
+        <View style={styles.amountHeader}>
+          <Overline>To</Overline>
+          {/* Not in the design: pick one of your accounts or a saved contact. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Choose from your accounts and contacts"
+            onPress={() => setPicking(true)}
+            style={styles.maxChip}
+          >
+            <Text size={13} weight={700}>
+              Accounts & contacts
+            </Text>
+          </Pressable>
+        </View>
         <View style={[styles.toField, submitted && toError ? { borderColor: colors.accent } : null]}>
           <TextInput
             accessibilityLabel="Recipient address"
@@ -77,16 +108,27 @@ export default function Send() {
             selectionColor={colors.accent}
             style={styles.toInput}
           />
-          {/* QR scanning (expo-camera) is not part of this iteration. */}
-          <Pressable accessibilityRole="button" accessibilityLabel="Scan QR code" style={styles.iconButton}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Scan QR code"
+            onPress={() => router.push({ pathname: '/scan', params: { from: 'send' } })}
+            style={styles.iconButton}
+          >
             <Icon name="scan" size={20} />
           </Pressable>
         </View>
-        {contact ? (
+        {known?.kind === 'self' ? (
+          <View style={styles.status}>
+            <Icon name="warning" size={16} color={colors.accentText} />
+            <Text accessibilityRole="alert" size={13} weight={600} color={colors.accentText} style={styles.flex}>
+              {toError}
+            </Text>
+          </View>
+        ) : known ? (
           <View style={styles.status}>
             <Icon name="check" size={16} color={colors.positive} strokeWidth={2.4} />
             <Text size={13} weight={600} color={colors.positive}>
-              Saved contact · {contact.name}
+              {known.kind === 'account' ? 'Your account' : 'Saved contact'} · {known.name}
             </Text>
           </View>
         ) : recipient ? (
@@ -137,7 +179,7 @@ export default function Send() {
           </View>
           <View style={styles.amountMeta}>
             <Text size={14} color={colors.textSecondary}>
-              ≈ {formatChf(value * demoQuotes.ethChf)}
+              ≈ {fiat.format(value * demoQuotes.ethChf)}
             </Text>
             <Text size={14} color={colors.textSecondary}>
               Balance {formatNumber(balance, 4)} ETH
@@ -154,6 +196,22 @@ export default function Send() {
       <Spacer />
 
       <Button label="Review" onPress={review} />
+
+      <RecipientPicker
+        visible={picking}
+        accounts={accounts.filter((a) => a.index !== account.index)}
+        contacts={contacts}
+        onSelect={setTo}
+        onClose={() => setPicking(false)}
+        onAddAccount={() => {
+          setPicking(false);
+          router.push('/accounts');
+        }}
+        onManageContacts={() => {
+          setPicking(false);
+          router.push('/contacts');
+        }}
+      />
     </Screen>
   );
 }

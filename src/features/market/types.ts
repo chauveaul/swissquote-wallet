@@ -33,7 +33,7 @@ export type PriceRange = '1D' | '1W' | '1M' | '1Y' | 'ALL';
 
 export type PricePoint = { value: number; label: string };
 
-export type ActivityKind = 'send' | 'receive' | 'swap' | 'approve';
+export type ActivityKind = 'send' | 'receive' | 'swap' | 'approve' | 'buy';
 export type ActivityStatus = 'pending' | 'confirmed' | 'failed';
 
 export type ActivityItem = {
@@ -44,7 +44,10 @@ export type ActivityItem = {
   /** Shown next to "Pending" (e.g. "~ 30 sec"). */
   eta?: string;
   amount: string;
-  fiat: string;
+  /** Value in CHF, shown in the display currency. */
+  valueChf: number;
+  /** The value is only the fee paid (e.g. token approvals). */
+  valueIsFee?: boolean;
   /** Unix ms; used for grouping by day. */
   timestamp: number;
   /** On-chain transaction hash; absent for demo or not-yet-broadcast items. */
@@ -54,12 +57,24 @@ export type ActivityItem = {
   networkId: NetworkId;
   /** Recipient (send), sender (receive) or approved spender (approve). */
   counterparty?: { label?: string; address: Address };
-  /** e.g. "0.00042 ETH · CHF 1.22" */
-  fee?: string;
+  /** Network fee: native amount (e.g. "0.00042 ETH") and its CHF value. */
+  fee?: { native?: string; chf: number };
   swap?: { paid: string; received: string; rate: string; minReceived: string };
+  purchase?: { paid: string; price: string; paymentMethod: string; fee: string };
   failureReason?: string;
 };
 
 export type Contact = { name: string; address: Address };
+
+/** A dApp the wallet has approved a session with (e.g. over WalletConnect). */
+export type ConnectedSite = {
+  id: string;
+  name: string;
+  /** Hostname shown to the user, e.g. `app.uniswap.org`. */
+  host: string;
+  networkId: NetworkId;
+  /** Unix ms. */
+  connectedAt: number;
+};
 
 export type FeeSpeed = 'low' | 'market' | 'fast';

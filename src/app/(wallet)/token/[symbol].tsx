@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -12,8 +12,9 @@ import { SegmentedControl } from '@/components/SegmentedControl';
 import { Overline, Text } from '@/components/Text';
 import { useMarketToken, usePriceHistory, useToken } from '@/features/market/queries';
 import type { PriceRange, TokenSymbol } from '@/features/market/types';
+import { useFiat } from '@/features/settings/useFiat';
 import { useNetworkId, useSelectedAccount } from '@/features/wallet/store';
-import { formatChf, formatNumber, priceDecimals } from '@/lib/format';
+import { formatNumber, priceDecimals } from '@/lib/format';
 import { getNetwork } from '@/lib/networks';
 import { colors, radii } from '@/theme/tokens';
 
@@ -35,6 +36,7 @@ const RANGE_NAMES: Record<PriceRange, string> = {
 
 /** 04b Coin detail & price history */
 export default function TokenDetail() {
+  const fiat = useFiat();
   const { symbol } = useLocalSearchParams<{ symbol: TokenSymbol }>();
   const account = useSelectedAccount();
   const network = getNetwork(useNetworkId());
@@ -43,7 +45,11 @@ export default function TokenDetail() {
   const [range, setRange] = useState<PriceRange>('1M');
   const [hover, setHover] = useState<number | null>(null);
   const [watched, setWatched] = useState(false);
-  const { data: points = [] } = usePriceHistory(symbol, range);
+  const { data: chfPoints = [] } = usePriceHistory(symbol, range);
+  const points = useMemo(
+    () => chfPoints.map((p) => ({ ...p, value: fiat.convert(p.value) })),
+    [chfPoints, fiat],
+  );
 
   const name = token?.name ?? market?.name ?? symbol;
   const n = points.length;
@@ -91,7 +97,7 @@ export default function TokenDetail() {
         <Overline>{hovered ? hovered.label : `${name} price`}</Overline>
         <View style={styles.priceRow}>
           <Text size={20} weight={600} color={colors.textSecondary}>
-            CHF
+            {fiat.code}
           </Text>
           <Text size={40} weight={700} tracking={-0.02} lineHeight={1} tabular>
             {formatNumber(ref, decimals)}
@@ -99,7 +105,7 @@ export default function TokenDetail() {
         </View>
         <View style={styles.changeRow}>
           <Text size={14} weight={600} color={up ? colors.positive : colors.accentText}>
-            {up ? '+ ' : '− '}CHF {formatNumber(Math.abs(diff), decimals)} ({Math.abs(pct).toFixed(2)}%)
+            {up ? '+ ' : '− '}{fiat.code} {formatNumber(Math.abs(diff), decimals)} ({Math.abs(pct).toFixed(2)}%)
           </Text>
           <Text size={14} color={colors.textMuted}>
             {RANGE_NAMES[range]}
@@ -111,9 +117,10 @@ export default function TokenDetail() {
         {n > 1 ? (
           <PriceChart
             points={points}
+            currency={fiat.code}
             hover={hover}
             onHover={setHover}
-            accessibilityLabel={`${name} price in CHF, ${RANGE_NAMES[range].toLowerCase()}, from CHF ${formatNumber(first, decimals)} to CHF ${formatNumber(last, decimals)}`}
+            accessibilityLabel={`${name} price in ${fiat.code}, ${RANGE_NAMES[range].toLowerCase()}, from ${fiat.code} ${formatNumber(first, decimals)} to ${fiat.code} ${formatNumber(last, decimals)}`}
           />
         ) : (
           <View style={styles.chartPlaceholder} />
@@ -150,7 +157,7 @@ export default function TokenDetail() {
             {formatNumber(token?.amount ?? 0, token?.displayDecimals ?? 4)} {symbol}
           </Text>
           <Text size={16} weight={600}>
-            {formatChf(token?.valueChf ?? 0)}
+            {fiat.format(token?.valueChf ?? 0)}
           </Text>
         </View>
         <View style={styles.networkRow}>

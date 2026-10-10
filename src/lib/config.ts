@@ -7,11 +7,14 @@
  */
 export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE !== 'false';
 
-/** Lock the wallet after the app has been in the background this long. */
-export const AUTO_LOCK_MS = 60_000;
-
 /** TODO: replace with the final legal document URLs from Swissquote Legal. */
 export const LEGAL_URLS = {
   terms: 'https://www.swissquote.com/en/private/legal-information',
   privacy: 'https://www.swissquote.com/en/private/privacy-policy',
+} as const;
+
+/** TODO: replace with the final support contacts from Swissquote. */
+export const SUPPORT_URLS = {
+  help: 'https://www.swissquote.com/en/private/contact',
+  security: 'mailto:security@swissquote.ch',
 } as const;

@@ -11,12 +11,13 @@ import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { demoQuotes } from '@/features/market/fixtures';
 import { appNow, localActivityId, useLocalActivity } from '@/features/market/queries';
+import { useFiat } from '@/features/settings/useFiat';
 import { QUOTE_TTL_S, quoteSwap, useSwapDraft } from '@/features/swap/quote';
 import { accountColor } from '@/features/wallet/accountColor';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
 import { useNetworkId, useSelectedAccount } from '@/features/wallet/store';
 import { DEMO_MODE } from '@/lib/config';
-import { formatChf, formatNumber } from '@/lib/format';
+import { formatNumber } from '@/lib/format';
 import { getNetwork } from '@/lib/networks';
 import { colors, radii } from '@/theme/tokens';
 
@@ -26,6 +27,7 @@ import { colors, radii } from '@/theme/tokens';
  * has seen the full quote and confirmed it.
  */
 export default function SwapReview() {
+  const fiat = useFiat();
   const account = useSelectedAccount();
   const networkId = useNetworkId();
   const network = getNetwork(networkId);
@@ -57,7 +59,7 @@ export default function SwapReview() {
     ['Minimum received', minReceived],
     ['Max. slippage', `${q.slippagePct}%`],
     ['Best of quotes', q.providers],
-    ['Network fee', formatChf(q.networkFeeChf)],
+    ['Network fee', fiat.format(q.networkFeeChf)],
     ['Swissquote fee', q.swissquoteFee],
   ];
 
@@ -76,11 +78,11 @@ export default function SwapReview() {
       status: 'pending',
       eta: demoQuotes.feeEta.market,
       amount: `+ ${received}`,
-      fiat: formatChf(q.receiveChf),
+      valueChf: q.receiveChf,
       timestamp: appNow(),
       accountIndex: account.index,
       networkId,
-      fee: formatChf(q.networkFeeChf),
+      fee: { chf: q.networkFeeChf },
       swap: { paid: `− ${paid}`, received: `+ ${received}`, rate: q.rateLabel, minReceived },
     });
     reset();
@@ -97,7 +99,7 @@ export default function SwapReview() {
           {paid}
         </Text>
         <Text size={15} color={colors.textSecondary}>
-          ≈ {formatChf(q.payChf)}
+          ≈ {fiat.format(q.payChf)}
         </Text>
         <View style={styles.arrow}>
           <Icon name="arrowDown" size={20} color={colors.textMuted} />
@@ -107,7 +109,7 @@ export default function SwapReview() {
           {received}
         </Text>
         <Text size={15} color={colors.textSecondary}>
-          ≈ {formatChf(q.receiveChf)}
+          ≈ {fiat.format(q.receiveChf)}
         </Text>
       </View>
 

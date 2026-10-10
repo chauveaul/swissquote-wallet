@@ -10,8 +10,15 @@ import { Icon } from '@/components/Icon';
 import { AccountAvatar } from '@/components/Marks';
 import { Screen } from '@/components/Screen';
 import { Text } from '@/components/Text';
-import { activityPresentation, KIND_ICON, KIND_LABEL } from '@/features/market/activityPresentation';
+import {
+  activityFeeLabel,
+  activityPresentation,
+  activityValueLabel,
+  KIND_ICON,
+  KIND_LABEL,
+} from '@/features/market/activityPresentation';
 import { useActivity } from '@/features/market/queries';
+import { useFiat } from '@/features/settings/useFiat';
 import type { ActivityItem } from '@/features/market/types';
 import { accountColor } from '@/features/wallet/accountColor';
 import { useWallet } from '@/features/wallet/store';
@@ -24,6 +31,7 @@ const COUNTERPARTY_LABEL: Record<ActivityItem['kind'], string> = {
   receive: 'From',
   approve: 'Spender',
   swap: 'Counterparty',
+  buy: 'From',
 };
 
 function Row({ label, children, last }: { label: string; children: ReactNode; last?: boolean }) {
@@ -83,6 +91,7 @@ export default function TransactionDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data } = useActivity();
   const accounts = useWallet((s) => s.meta?.accounts ?? []);
+  const fiat = useFiat();
   const item = data.find((a) => a.id === id);
 
   if (!item) {
@@ -130,8 +139,17 @@ export default function TransactionDetails() {
       { label: 'Minimum received', node: <Value>{item.swap.minReceived}</Value> },
     );
   }
+  if (item.purchase) {
+    rows.push(
+      { label: 'You paid', node: <Value>{item.purchase.paid}</Value> },
+      { label: 'Price', node: <Value>{item.purchase.price}</Value> },
+      { label: 'Paid from', node: <Value>{item.purchase.paymentMethod}</Value> },
+      { label: 'Swissquote fee', node: <Value>{item.purchase.fee}</Value> },
+    );
+  }
   rows.push({ label: 'Network', node: <Value>{network.name}</Value> });
-  if (item.fee) rows.push({ label: 'Network fee', node: <Value>{item.fee}</Value> });
+  const feeLabel = activityFeeLabel(item, fiat);
+  if (feeLabel) rows.push({ label: 'Network fee', node: <Value>{feeLabel}</Value> });
   if (item.hash) {
     rows.push({
       label: 'Transaction hash',
@@ -158,7 +176,7 @@ export default function TransactionDetails() {
           {item.amount}
         </Text>
         <Text size={15} color={colors.textSecondary}>
-          {item.fiat}
+          {activityValueLabel(item, fiat)}
         </Text>
         <Text accessibilityRole="text" size={13} weight={600} color={p.statusColor}>
           {p.status}
