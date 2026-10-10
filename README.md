@@ -35,31 +35,37 @@ Expo Go is not supported: biometric-protected Keychain items need `NSFaceIDUsage
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `EXPO_PUBLIC_DEMO_MODE` | `false` | `true` = serve the design's balances/prices/activity and simulate broadcasting. Key management is always real. |
-| `EXPO_PUBLIC_RPC_URL_{ETH,ARB,OP,BASE,POL,SEPOLIA}` | chain's public RPC | RPC endpoints for fee estimation and broadcasting. |
+| `EXPO_PUBLIC_RPC_URL_{ETH,ARB,OP,BASE,POL,SEPOLIA,ARB_SEPOLIA,OP_SEPOLIA,BASE_SEPOLIA,POL_AMOY}` | chain's public RPC | RPC endpoints for fee estimation and broadcasting. |
 | `EXPO_PUBLIC_MARKET_DATA` | `swissquote` | `swissquote` = Swissquote's own real-time quotes for all 55 listed cryptos, daily history and FX; `kraken` = Kraken public data (intraday history, wallet tokens only); `demo` = the design's fixed sample prices. Independent of `EXPO_PUBLIC_DEMO_MODE`. |
 | `EXPO_PUBLIC_SWISSQUOTE_API_URL` | `https://www.swissquote.ch` (web dev: `/sq-api` proxy) | Base URL of the price service (e.g. a Swissquote mobile gateway). |
 | `RPC_URL`, `DEMO_PRIVATE_KEY`, `BUNDLER_URL`, `USDC_ADDRESS` | public Sepolia RPC / unset | Used only by the `demo:*` CLI scripts below, never bundled into the app (not `EXPO_PUBLIC_`). |
 
 Copy `.env.example` to `.env` to override these (`.env` is gitignored, not committed).
 
-### Testing a real send on Sepolia
+### Testing a real send on a testnet
 
-With `EXPO_PUBLIC_DEMO_MODE=false`, the wallet's own ETH balance and the network fee shown in
+With `EXPO_PUBLIC_DEMO_MODE=false`, the wallet's own native balance and the network fee shown in
 Send/Review come from the chain for real, and Confirm broadcasts a real signed transaction.
 (Prices still come from `EXPO_PUBLIC_MARKET_DATA` independently of this flag — see above.)
+
+Five testnets are wired up: **Sepolia** (Ethereum), **Arbitrum Sepolia**, **OP Sepolia**, **Base
+Sepolia** and **Polygon Amoy** — same address on all of them (one mnemonic, standard EVM
+derivation). **Accounts & networks** also shows this account's balance on every network (mainnets
+included) at once, so funding more than one testnet is a good way to see that aggregation working.
 
 1. `npx expo start --web` (fastest iteration; localStorage/no biometrics — use a
    `run:ios`/`run:android` dev build to test the real Keychain/Face ID path).
 2. Create a wallet (fresh mnemonic — not the same address as the `DEMO_PRIVATE_KEY` used by the
    `demo:*` scripts, since mnemonic-derived accounts can't import a raw private key).
-3. **Accounts & networks** → select **Sepolia (testnet)**.
-4. **Receive** → copy the address, fund it from a faucet (e.g.
-   https://www.alchemy.com/faucets/ethereum-sepolia or
-   https://www.coinbase.com/faucets/ethereum-sepolia-faucet).
-5. Pull-to-refresh Home → the real ETH balance appears.
+3. **Accounts & networks** → select whichever testnet you want to send on.
+4. **Receive** → copy the address, fund it from a faucet, e.g.:
+   - https://www.alchemy.com/faucets/ethereum-sepolia · https://cloud.google.com/application/web3/faucet/ethereum/sepolia
+   - https://faucet.quicknode.com (covers Sepolia, Arbitrum Sepolia, OP Sepolia, Base Sepolia and Polygon Amoy in one place)
+5. Pull-to-refresh Home, or open **Accounts & networks**, to see the real balance (it polls automatically every 10–20s too).
 6. **Send** → amount/recipient → **Review** (real estimated fee) → **Confirm** → the tx
-   broadcasts; the activity entry carries a real hash — check it on
-   https://sepolia.etherscan.io.
+   broadcasts; the activity entry carries a real hash — check it on that chain's explorer
+   (e.g. `sepolia.etherscan.io`, `sepolia.arbiscan.io`, `sepolia-optimism.etherscan.io`,
+   `sepolia.basescan.org`, `amoy.polygonscan.com`).
 
 ### Sepolia CLI sandbox (`src/services/walletCore`)
 
@@ -74,8 +80,8 @@ npm run demo:send -- eth <to> <amount>         # send ETH (or `usdc`, needs USDC
 `walletCore/account.ts` is the passkey (WebAuthn) ERC-4337 Coinbase Smart Account prototype with
 backup-owner recovery; it is browser-only and not wired into the app yet.
 
-Stay on Sepolia while `DEMO_MODE=false`: the other networks are real mainnets, and a funded
-account there would move real funds.
+Stay on a testnet while `DEMO_MODE=false`: `eth`/`arb`/`op`/`base`/`pol` are real mainnets, and a
+funded account there would move real funds.
 
 ## Security model
 

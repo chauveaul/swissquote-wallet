@@ -1,7 +1,28 @@
 import type { Chain } from 'viem';
-import { arbitrum, base, mainnet, optimism, polygon, sepolia } from 'viem/chains';
+import {
+  arbitrum,
+  arbitrumSepolia,
+  base,
+  baseSepolia,
+  mainnet,
+  optimism,
+  optimismSepolia,
+  polygon,
+  polygonAmoy,
+  sepolia,
+} from 'viem/chains';
 
-export type NetworkId = 'eth' | 'arb' | 'op' | 'base' | 'pol' | 'sepolia';
+export type NetworkId =
+  | 'eth'
+  | 'arb'
+  | 'op'
+  | 'base'
+  | 'pol'
+  | 'sepolia'
+  | 'arbSepolia'
+  | 'opSepolia'
+  | 'baseSepolia'
+  | 'polAmoy';
 
 export type Network = {
   id: NetworkId;
@@ -19,8 +40,12 @@ export const networks: readonly Network[] = [
   { id: 'op', mark: 'O', name: 'OP Mainnet', shortName: 'Optimism', chain: optimism },
   { id: 'base', mark: 'B', name: 'Base', shortName: 'Base', chain: base },
   { id: 'pol', mark: 'P', name: 'Polygon PoS', shortName: 'Polygon', chain: polygon },
-  // Testnet for dry-running real signing/broadcast without risking mainnet funds.
+  // Testnets, for dry-running real signing/broadcast without risking mainnet funds.
   { id: 'sepolia', mark: 'S', name: 'Sepolia (testnet)', shortName: 'Sepolia', chain: sepolia },
+  { id: 'arbSepolia', mark: 'AS', name: 'Arbitrum Sepolia (testnet)', shortName: 'Arb. Sepolia', chain: arbitrumSepolia },
+  { id: 'opSepolia', mark: 'OS', name: 'OP Sepolia (testnet)', shortName: 'OP Sepolia', chain: optimismSepolia },
+  { id: 'baseSepolia', mark: 'BS', name: 'Base Sepolia (testnet)', shortName: 'Base Sepolia', chain: baseSepolia },
+  { id: 'polAmoy', mark: 'PA', name: 'Polygon Amoy (testnet)', shortName: 'Amoy', chain: polygonAmoy },
 ];
 
 export function getNetwork(id: NetworkId): Network {
@@ -41,6 +66,10 @@ export function rpcUrl(id: NetworkId): string {
     base: process.env.EXPO_PUBLIC_RPC_URL_BASE,
     pol: process.env.EXPO_PUBLIC_RPC_URL_POL,
     sepolia: process.env.EXPO_PUBLIC_RPC_URL_SEPOLIA,
+    arbSepolia: process.env.EXPO_PUBLIC_RPC_URL_ARB_SEPOLIA,
+    opSepolia: process.env.EXPO_PUBLIC_RPC_URL_OP_SEPOLIA,
+    baseSepolia: process.env.EXPO_PUBLIC_RPC_URL_BASE_SEPOLIA,
+    polAmoy: process.env.EXPO_PUBLIC_RPC_URL_POL_AMOY,
   };
   return env[id] ?? getNetwork(id).chain.rpcUrls.default.http[0]!;
 }
