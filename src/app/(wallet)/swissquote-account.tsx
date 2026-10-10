@@ -11,9 +11,10 @@ import { SettingsGroup, SettingsRow } from '@/components/SettingsList';
 import { Overline, Text } from '@/components/Text';
 import { useToken } from '@/features/market/queries';
 import { useSendDraft } from '@/features/send/draft';
+import { useFiat } from '@/features/settings/useFiat';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
 import { useNetworkId, useSelectedAccount, useSwissquote, useWallet } from '@/features/wallet/store';
-import { formatChf, formatNumber, truncateAddress } from '@/lib/format';
+import { formatNumber, truncateAddress } from '@/lib/format';
 import { getSwissquoteCustomer, unlinkSwissquoteAccount, withdrawFromSwissquote } from '@/services/swissquoteMock';
 import { colors, radii } from '@/theme/tokens';
 
@@ -23,6 +24,7 @@ import { colors, radii } from '@/theme/tokens';
  * `mock-swissquote/README.md` for what's mocked vs real.
  */
 export default function SwissquoteAccount() {
+  const fiat = useFiat();
   const swissquote = useSwissquote();
   const unlinkSwissquote = useWallet((s) => s.unlinkSwissquote);
   const account = useSelectedAccount();
@@ -99,12 +101,21 @@ export default function SwissquoteAccount() {
       <View style={styles.balanceCard}>
         <Overline color={colors.onDarkMuted}>Swissquote balance</Overline>
         <Text size={36} weight={700} color={colors.surface} tracking={-0.02}>
-          {customer ? formatChf(customer.chfBalance) : '···'}
+          {customer ? fiat.format(customer.chfBalance) : '···'}
         </Text>
         <Text size={13} color={colors.onDarkMuted}>
           Account {swissquote.accountNumber} · linked {new Date(swissquote.linkedAt).toLocaleDateString()}
         </Text>
       </View>
+
+      <SettingsGroup label="Display">
+        <SettingsRow
+          label="Currency"
+          value={fiat.code}
+          onPress={() => router.push('/currency')}
+          last
+        />
+      </SettingsGroup>
 
       <SettingsGroup label="Linked wallet">
         <SettingsRow label="Custodial address" detail={truncateAddress(swissquote.custodialAddress)} mono />
