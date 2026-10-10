@@ -12,7 +12,7 @@ import { Overline, Text } from '@/components/Text';
 import { useToken } from '@/features/market/queries';
 import { useSendDraft } from '@/features/send/draft';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
-import { useNetworkId, useSelectedAccount, useSwissquote } from '@/features/wallet/store';
+import { useNetworkId, useSelectedAccount, useSwissquote, useWallet } from '@/features/wallet/store';
 import { formatChf, formatNumber, truncateAddress } from '@/lib/format';
 import { getSwissquoteCustomer, withdrawFromSwissquote } from '@/services/swissquoteMock';
 import { colors, radii } from '@/theme/tokens';
@@ -24,6 +24,7 @@ import { colors, radii } from '@/theme/tokens';
  */
 export default function SwissquoteAccount() {
   const swissquote = useSwissquote();
+  const unlinkSwissquote = useWallet((s) => s.unlinkSwissquote);
   const account = useSelectedAccount();
   const networkId = useNetworkId();
   const eth = useToken(account.index, 'ETH');
@@ -129,6 +130,11 @@ export default function SwissquoteAccount() {
           Refreshing…
         </Text>
       ) : null}
+      <Button
+        label="Unlink this device"
+        variant="secondary"
+        onPress={() => unlinkSwissquote().then(() => router.dismissTo('/settings'))}
+      />
     </Screen>
   );
 }

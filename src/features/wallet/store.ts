@@ -92,6 +92,7 @@ type WalletState = {
   disconnectSite: (id: string) => Promise<void>;
   disconnectAllSites: () => Promise<void>;
   linkSwissquote: (link: SwissquoteLink) => Promise<void>;
+  unlinkSwissquote: () => Promise<void>;
 };
 
 /*
@@ -303,6 +304,11 @@ export const useWallet = create<WalletState>((set, get) => {
     disconnectAllSites: () => updateMeta({ connectedSites: [] }),
 
     linkSwissquote: (link) => updateMeta({ swissquote: link }),
+
+    // Local-only: doesn't tell the mock server, which still remembers the
+    // customer as linked. Fine for re-testing (pick a different demo
+    // customer, or clear mock-swissquote/data.json to free them all up).
+    unlinkSwissquote: () => updateMeta({ swissquote: null }),
 
     selectNetwork: async (networkId) => {
       const meta = get().meta;

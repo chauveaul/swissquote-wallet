@@ -13,6 +13,7 @@ import { Text } from '@/components/Text';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
 import { useSelectedAccount, useWallet } from '@/features/wallet/store';
 import {
+  getCustodialAddress,
   linkSwissquoteAccount,
   listDemoCustomers,
   loginSwissquote,
@@ -64,12 +65,15 @@ export default function LinkSwissquote() {
 
       const linked = await linkSwissquoteAccount(customer.id, account.address, message, signature);
       if (!linked.linkedAddress) throw new Error('Linking failed.');
+      // `linked.linkedAddress` is an echo of *this wallet's own* address (what
+      // got linked) — not Swissquote's deposit address. Fetch that separately.
+      const custodialAddress = await getCustodialAddress();
 
       await linkSwissquote({
         customerId: linked.id,
         name: linked.name,
         accountNumber: linked.accountNumber,
-        custodialAddress: linked.linkedAddress,
+        custodialAddress,
         linkedAt: linked.linkedAt ?? new Date().toISOString(),
       });
       router.dismissTo('/swissquote-account');
