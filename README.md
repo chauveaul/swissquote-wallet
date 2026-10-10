@@ -83,6 +83,31 @@ backup-owner recovery; it is browser-only and not wired into the app yet.
 Stay on a testnet while `DEMO_MODE=false`: `eth`/`arb`/`op`/`base`/`pol` are real mainnets, and a
 funded account there would move real funds.
 
+### Swissquote account linking (`mock-swissquote/`)
+
+"One step away from their Swissquote account": Settings → "Link your Swissquote account" links
+this wallet to a **mock** Swissquote server (a separate process — fake customers, fake PINs, fake
+CHF ledger; see `mock-swissquote/README.md` for exactly what's mocked vs real). What's real: the
+wallet signs a message proving it controls its address, the mock server verifies that signature
+before recording the link — the actual ownership check the Travel Rule requires — and both
+transfer directions are genuine signed transactions on whichever testnet you're using, not a
+simulation.
+
+Accepted currencies are ETH, USDC and LINK — not WBTC, a third-party-custodied wrapped claim on
+BTC rather than BTC itself, which a regulated custodian can't accept without separate due
+diligence on that custodian. Execution today only covers ETH (Send/Review are native-ETH only;
+USDC/LINK transfers are a tracked follow-up, same as ERC-20 sends generally).
+
+```bash
+npm run swissquote:mock   # separate terminal, needs its own mock-swissquote/.env — see its README
+```
+
+Then in the app: Settings → Link your Swissquote account → pick a demo customer (PIN `0000`) →
+sign. "Move ETH to Swissquote" reuses Send/Review as normal, addressed to the custodial account.
+"Move ETH to wallet" calls the mock server directly, which only ever withdraws to the address it
+already verified — the Travel Rule check, made automatic, demonstrated by rejecting any other
+destination.
+
 ## Security model
 
 - **Key generation** – BIP-39 mnemonic from the platform CSPRNG; accounts derived at `m/44'/60'/0'/0/i`.
@@ -108,8 +133,11 @@ src/
   features/send/       Send draft, recipient validation, fees
   services/chain.ts    viem clients: fee estimation, signing, broadcast
   services/walletCore/ Sepolia sandbox: raw-key EOA sends, ERC-20 balances, passkey smart account
+  services/swissquoteMock.ts  Client for mock-swissquote/ (see below)
 scripts/               check-prices (API contract check), demo-eoa / demo-send (Sepolia CLI)
   theme/tokens.ts      Colours, fonts and radii taken from the design
+
+mock-swissquote/       Separate process: mock bank backend + compliance provider (own README)
 ```
 
 ## Screen map
@@ -134,6 +162,7 @@ scripts/               check-prices (API contract check), demo-eoa / demo-send (
 | — Transaction details *(added)* | `(wallet)/transaction/[id]` |
 | — Explore *(added, see below)* | `(wallet)/(tabs)/explore` |
 | — Sign out *(added)* | `(wallet)/sign-out`, and inline on `unlock` |
+| — Swissquote account linking *(added)* | `(wallet)/link-swissquote`, `(wallet)/swissquote-account` |
 | 10 Activity · 11 Settings | `(wallet)/(tabs)/activity`, `(wallet)/(tabs)/settings` |
 
 ## Deviations from the design and open items
@@ -151,7 +180,8 @@ scripts/               check-prices (API contract check), demo-eoa / demo-send (
 - **Settings detail screens** – not drawn. Biometrics on/off (re-confirmed with biometrics/passcode) and an auto-lock delay the app enforces; connected sites (demo sessions until WalletConnect is integrated) with disconnect; display currency (CHF/EUR/USD/GBP, demo FX rates, amounts are stored in CHF and converted for display, Buy stays in CHF); an address book used by Send's saved-contact check; help FAQ; about. Support URLs are placeholders in `src/lib/config.ts`.
 - **Send recipients** – not drawn; an "Accounts & contacts" chip on the To row opens a searchable sheet of your other accounts and saved contacts. Send and Review label recognised recipients ("Your account", "Saved contact") and block sending to the account you're sending from.
 - **Activity network filter** – the "All networks" chip opens a network picker and filters the list.
-- **No screen in the design yet** (tappable but inert): swap settings, hardware wallet, custom network, Swissquote account linking.
+- **No screen in the design yet** (tappable but inert): swap settings, hardware wallet, custom network.
+- **Swissquote account linking** – not drawn; see "Swissquote account linking" above. Settings' promo now links to `(wallet)/link-swissquote` and `(wallet)/swissquote-account`, talking to the separate `mock-swissquote/` process.
 - **Review swap** – the design links "Review swap" to the Review screen; it is adapted for swaps (pay/receive, minimum received after slippage, fees). Quotes expire after 30 s and must be refreshed before confirming.
 - **Transaction details** – not drawn; tapping an Activity row opens type, date, account, full counterparty address (copyable), swap breakdown, network fee, failure reason and an explorer link when a hash exists.
 - **Live-mode balances are ETH-only** – `usePortfolio`/`useToken` (`src/features/market/queries.ts`) read a real native balance when `DEMO_MODE=false`, but WBTC/USDC/LINK stay demo-only (no per-chain testnet token addresses wired up).

@@ -21,6 +21,7 @@ export default function Settings() {
   const biometrics = meta?.biometrics ?? false;
   const autoLock = formatAutoLock(meta?.autoLockMs ?? 60_000);
   const contacts = meta?.contacts.length ?? 0;
+  const swissquote = meta?.swissquote ?? null;
 
   // Destination screens other than "Reveal recovery phrase" and "Networks" aren't drawn in the design.
   const sections: { label: string; rows: Row[] }[] = [
@@ -59,14 +60,18 @@ export default function Settings() {
       </Text>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Swissquote account linking has no flow in the design yet. */}
-        <Pressable accessibilityRole="button" style={styles.promo}>
+        {/* Not drawn in the design: links to a mock Swissquote server, see swissquote-account.tsx. */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push(swissquote ? '/swissquote-account' : '/link-swissquote')}
+          style={styles.promo}
+        >
           <View style={styles.promoIcon}>
             <Icon name="link" size={20} color={colors.inkStrong} strokeWidth={2.2} />
           </View>
           <View style={styles.flex}>
             <Text size={15} weight={700} color={colors.surface}>
-              Link your Swissquote account
+              {swissquote ? `Linked to ${swissquote.name}` : 'Link your Swissquote account'}
             </Text>
             <Text size={13} color={colors.onDarkMuted}>
               Move funds between your bank account and wallet

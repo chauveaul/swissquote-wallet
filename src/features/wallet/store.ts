@@ -14,6 +14,18 @@ import { bytesToHex, createVault, decryptWithKey, hexToBytes, parseVault, unlock
 
 export type AccountMeta = { index: number; name: string; address: Address };
 
+/**
+ * A linked mock Swissquote account (`mock-swissquote/`) — the ownership
+ * attestation this wallet's address signed for, verified server-side.
+ */
+export type SwissquoteLink = {
+  customerId: string;
+  name: string;
+  accountNumber: string;
+  custodialAddress: Address;
+  linkedAt: string;
+};
+
 /** Non-secret wallet metadata, stored next to the vault. */
 type WalletMeta = {
   accounts: AccountMeta[];
@@ -25,17 +37,19 @@ type WalletMeta = {
   currency: CurrencyCode;
   contacts: Contact[];
   connectedSites: ConnectedSite[];
+  swissquote: SwissquoteLink | null;
 };
 
 export const AUTO_LOCK_OPTIONS_MS = [0, 60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000] as const;
 
 /** Settings every wallet starts with; also fills fields missing from older metadata. */
-function defaultPreferences(): Pick<WalletMeta, 'autoLockMs' | 'currency' | 'contacts' | 'connectedSites'> {
+function defaultPreferences(): Pick<WalletMeta, 'autoLockMs' | 'currency' | 'contacts' | 'connectedSites' | 'swissquote'> {
   return {
     autoLockMs: 60_000,
     currency: 'CHF',
     contacts: DEMO_MODE ? [...demoContacts] : [],
     connectedSites: DEMO_MODE ? [...demoConnectedSites] : [],
+    swissquote: null,
   };
 }
 
@@ -77,6 +91,7 @@ type WalletState = {
   deleteContact: (address: Address) => Promise<void>;
   disconnectSite: (id: string) => Promise<void>;
   disconnectAllSites: () => Promise<void>;
+  linkSwissquote: (link: SwissquoteLink) => Promise<void>;
 };
 
 /*
@@ -287,6 +302,8 @@ export const useWallet = create<WalletState>((set, get) => {
 
     disconnectAllSites: () => updateMeta({ connectedSites: [] }),
 
+    linkSwissquote: (link) => updateMeta({ swissquote: link }),
+
     selectNetwork: async (networkId) => {
       const meta = get().meta;
       if (!meta) return;
@@ -313,4 +330,8 @@ export function useSelectedAccount(): AccountMeta {
 
 export function useNetworkId(): NetworkId {
   return useWallet((s) => s.meta?.networkId ?? 'eth');
+}
+
+export function useSwissquote(): SwissquoteLink | null {
+  return useWallet((s) => s.meta?.swissquote ?? null);
 }

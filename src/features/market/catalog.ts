@@ -81,6 +81,19 @@ export const CRYPTO_CATALOG: readonly CatalogAsset[] = [
 export const WALLET_TOKENS: readonly TokenSymbol[] = ['ETH', 'WBTC', 'USDC', 'LINK'];
 export const PRICE_AS: Readonly<Record<TokenSymbol, TokenSymbol>> = { WBTC: 'BTC' };
 
+/**
+ * Tokens accepted for transfer to/from a linked Swissquote account — not
+ * WBTC. WBTC is a third-party-custodied wrapped claim on BTC (BitGo), not
+ * BTC itself; accepting it means trusting BitGo's custody on top of
+ * Swissquote's, a real due-diligence question a bank can't skip. USDC and
+ * LINK are both plain, directly-held ERC-20s with no such issue.
+ * (Execution today only covers ETH — see `services/swissquoteMock.ts` and
+ * the README; USDC/LINK transfer support is a tracked follow-up, same as
+ * ERC-20 sends generally.)
+ */
+export const SWISSQUOTE_ACCEPTED_TOKENS: readonly TokenSymbol[] = ['ETH', 'USDC', 'LINK'];
+export const isSwissquoteAccepted = (symbol: TokenSymbol) => SWISSQUOTE_ACCEPTED_TOKENS.includes(symbol);
+
 export const isWalletToken = (symbol: TokenSymbol) => WALLET_TOKENS.includes(symbol);
 
 const NAMES: Readonly<Record<TokenSymbol, string>> = { WBTC: 'Wrapped Bitcoin', USDC: 'USD Coin' };

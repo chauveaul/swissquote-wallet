@@ -65,7 +65,8 @@
     "test": "jest",
     "check:prices": "tsx scripts/check-prices.ts",
     "demo:eoa": "tsx --env-file=.env scripts/demo-eoa.ts",
-    "demo:send": "tsx --env-file=.env scripts/demo-send.ts"
+    "demo:send": "tsx --env-file=.env scripts/demo-send.ts",
+    "swissquote:mock": "npm --prefix mock-swissquote run start"
   },
   "private": true,
   "jest": {

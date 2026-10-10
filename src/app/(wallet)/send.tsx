@@ -16,7 +16,7 @@ import type { AccountMeta } from '@/features/wallet/store';
 import { parseRecipient, useSendDraft } from '@/features/send/draft';
 import { identifyRecipient } from '@/features/send/recipient';
 import { accountColor } from '@/features/wallet/accountColor';
-import { useNetworkId, useSelectedAccount, useWallet } from '@/features/wallet/store';
+import { useNetworkId, useSelectedAccount, useSwissquote, useWallet } from '@/features/wallet/store';
 import { formatNumber, truncateAddress } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -37,7 +37,8 @@ export default function Send() {
   const recipient = parseRecipient(to);
   const contacts = useWallet((s) => s.meta?.contacts ?? NO_CONTACTS);
   const accounts = useWallet((s) => s.meta?.accounts ?? NO_ACCOUNTS);
-  const known = identifyRecipient(recipient, account.index, accounts, contacts);
+  const swissquote = useSwissquote();
+  const known = identifyRecipient(recipient, account.index, accounts, contacts, swissquote);
   const value = Number(amount) || 0;
   const ethChf = useSpotPrice('ETH');
   const { data: feeEstimate } = useFeeEstimate(networkId, speed, ethChf);
@@ -130,7 +131,12 @@ export default function Send() {
           <View style={styles.status}>
             <Icon name="check" size={16} color={colors.positive} strokeWidth={2.4} />
             <Text size={13} weight={600} color={colors.positive}>
-              {known.kind === 'account' ? 'Your account' : 'Saved contact'} · {known.name}
+              {known.kind === 'account'
+                ? 'Your account'
+                : known.kind === 'swissquote'
+                  ? 'Linked Swissquote account'
+                  : 'Saved contact'}{' '}
+              · {known.name}
             </Text>
           </View>
         ) : recipient ? (

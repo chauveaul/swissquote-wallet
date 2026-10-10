@@ -15,11 +15,12 @@ import { parseRecipient, useSendDraft } from '@/features/send/draft';
 import { identifyRecipient } from '@/features/send/recipient';
 import { accountColor } from '@/features/wallet/accountColor';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
-import { useNetworkId, useSelectedAccount, useWallet, type AccountMeta } from '@/features/wallet/store';
+import { useNetworkId, useSelectedAccount, useSwissquote, useWallet, type AccountMeta } from '@/features/wallet/store';
 import { DEMO_MODE } from '@/lib/config';
 import { formatNumber, truncateAddress } from '@/lib/format';
 import { getNetwork } from '@/lib/networks';
 import { sendNative } from '@/services/chain';
+import { confirmSwissquoteDeposit } from '@/services/swissquoteMock';
 import { colors, radii } from '@/theme/tokens';
 
 const SPEEDS: { id: FeeSpeed; label: string }[] = [
@@ -41,6 +42,7 @@ export default function Review() {
   const contacts = useWallet((s) => s.meta?.contacts ?? NO_CONTACTS);
   const ethChf = useSpotPrice('ETH');
   const accounts = useWallet((s) => s.meta?.accounts ?? NO_ACCOUNTS);
+  const swissquote = useSwissquote();
   const addActivity = useLocalActivity((s) => s.add);
   const { to, amount, speed, setSpeed, reset } = useSendDraft();
   const [busy, setBusy] = useState(false);
@@ -51,10 +53,16 @@ export default function Review() {
   const recipient = parseRecipient(to);
   if (!recipient || !(Number(amount) > 0) || !fee) return <Redirect href="/send" />;
 
-  const known = identifyRecipient(recipient, account.index, accounts, contacts);
+  const known = identifyRecipient(recipient, account.index, accounts, contacts, swissquote);
   // Never confirm a transfer to the sending account itself.
   if (known?.kind === 'self') return <Redirect href="/send" />;
-  const toName = known ? (known.kind === 'account' ? `${known.name} (yours)` : known.name) : 'New address';
+  const toName = known
+    ? known.kind === 'account'
+      ? `${known.name} (yours)`
+      : known.kind === 'swissquote'
+        ? `Swissquote · ${known.name}`
+        : known.name
+    : 'New address';
   const value = Number(amount);
   const total = value + fee.eth;
 
@@ -68,10 +76,18 @@ export default function Review() {
       if (!DEMO_MODE) {
         hash = await sendNative({ signer: getSigner(account.index), networkId, to: recipient, amount, speed });
       }
+      if (hash && known?.kind === 'swissquote' && swissquote) {
+        // The on-chain transfer already succeeded — a failure here just means
+        // the mock server hasn't credited the CHF ledger yet, not that the
+        // money didn't move. Never block/fail the activity entry on it.
+        confirmSwissquoteDeposit(swissquote.customerId, networkId, hash).catch((e: unknown) => {
+          console.warn('[swissquote] deposit not confirmed with the mock server yet:', e);
+        });
+      }
       addActivity({
         id: hash ?? localActivityId(),
         kind: 'send',
-        title: 'Sent ETH',
+        title: known?.kind === 'swissquote' ? 'Moved to Swissquote' : 'Sent ETH',
         status: 'pending',
         eta: fee.eta,
         amount: `− ${formatNumber(value, 4)} ETH`,
