@@ -1,0 +1,16 @@
+{
+  "name": "wallet-core",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "demo:eoa": "tsx src/demo-eoa.ts"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}
