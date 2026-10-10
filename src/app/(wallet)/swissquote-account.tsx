@@ -14,7 +14,7 @@ import { useSendDraft } from '@/features/send/draft';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
 import { useNetworkId, useSelectedAccount, useSwissquote, useWallet } from '@/features/wallet/store';
 import { formatChf, formatNumber, truncateAddress } from '@/lib/format';
-import { getSwissquoteCustomer, withdrawFromSwissquote } from '@/services/swissquoteMock';
+import { getSwissquoteCustomer, unlinkSwissquoteAccount, withdrawFromSwissquote } from '@/services/swissquoteMock';
 import { colors, radii } from '@/theme/tokens';
 
 /**
@@ -32,6 +32,7 @@ export default function SwissquoteAccount() {
   const queryClient = useQueryClient();
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [busy, setBusy] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data: customer, isRefetching, refetch } = useQuery({
@@ -67,6 +68,21 @@ export default function SwissquoteAccount() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const unlink = async () => {
+    setError(null);
+    setUnlinking(true);
+    try {
+      // Best-effort: tell the server first so the customer is actually free
+      // to re-link (otherwise it still thinks this address owns them, and
+      // picking them again on /link-swissquote fails with "already linked").
+      await unlinkSwissquoteAccount(swissquote.customerId);
+    } catch (e) {
+      console.warn('[swissquote] server-side unlink failed, unlinking locally anyway:', e);
+    }
+    await unlinkSwissquote();
+    router.dismissTo('/settings');
   };
 
   return (
@@ -130,11 +146,7 @@ export default function SwissquoteAccount() {
           Refreshing…
         </Text>
       ) : null}
-      <Button
-        label="Unlink this device"
-        variant="secondary"
-        onPress={() => unlinkSwissquote().then(() => router.dismissTo('/settings'))}
-      />
+      <Button label="Unlink this device" variant="secondary" onPress={unlink} loading={unlinking} />
     </Screen>
   );
 }

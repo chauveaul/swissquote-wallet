@@ -24,7 +24,7 @@ export type Customer = {
 export type AuditEntry = {
   id: string;
   timestamp: string;
-  type: 'link' | 'deposit' | 'withdraw';
+  type: 'link' | 'unlink' | 'deposit' | 'withdraw';
   customerId: string;
   detail: Record<string, unknown>;
 };
@@ -71,6 +71,15 @@ export function linkCustomer(id: string, address: string): Customer {
   if (!c) throw new Error('Unknown customer');
   c.linkedAddress = address;
   c.linkedAt = new Date().toISOString();
+  persist();
+  return c;
+}
+
+export function unlinkCustomer(id: string): Customer {
+  const c = getCustomer(id);
+  if (!c) throw new Error('Unknown customer');
+  c.linkedAddress = null;
+  c.linkedAt = null;
   persist();
   return c;
 }

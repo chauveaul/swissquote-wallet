@@ -13,6 +13,7 @@ import {
   listCustomers,
   linkCustomer,
   markTxProcessed,
+  unlinkCustomer,
   type Customer,
 } from './store.ts';
 import { publicClientFor, walletClientFor, type NetworkId } from './chains.ts';
@@ -107,6 +108,22 @@ app.post('/link', async (req, res) => {
   // This is the Travel Rule ownership attestation: a real signature, really verified.
   const updated = linkCustomer(customer.id, address);
   appendAudit({ type: 'link', customerId: customer.id, detail: { address, message } });
+  res.json(publicCustomer(updated));
+});
+
+app.post('/unlink', (req, res) => {
+  // Demo-only: no re-authentication required to unlink. A real bank would
+  // require the customer to re-authenticate (password/2FA) before freeing an
+  // address binding, not just a client-side button press.
+  const { customerId } = req.body ?? {};
+  const customer = getCustomer(String(customerId ?? ''));
+  if (!customer) {
+    res.status(404).json({ error: 'Unknown customer.' });
+    return;
+  }
+  const previousAddress = customer.linkedAddress;
+  const updated = unlinkCustomer(customer.id);
+  appendAudit({ type: 'unlink', customerId: customer.id, detail: { previousAddress } });
   res.json(publicCustomer(updated));
 });
 

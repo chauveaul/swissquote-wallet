@@ -63,6 +63,9 @@ export const getCustodialAddress = () => call<{ address: Address }>('/custodial-
 export const linkSwissquoteAccount = (customerId: string, address: Address, message: string, signature: Hash) =>
   call<SwissquoteCustomer>('/link', { method: 'POST', body: JSON.stringify({ customerId, address, message, signature }) });
 
+export const unlinkSwissquoteAccount = (customerId: string) =>
+  call<SwissquoteCustomer>('/unlink', { method: 'POST', body: JSON.stringify({ customerId }) });
+
 export const confirmSwissquoteDeposit = (customerId: string, networkId: NetworkId, txHash: Hash) =>
   call<{ customer: SwissquoteCustomer; creditedChf: number }>('/transfer/deposit-confirmed', {
     method: 'POST',
