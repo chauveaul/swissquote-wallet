@@ -5,7 +5,9 @@ import { sepolia } from "viem/chains";
 // you fund the demo account from a Base-Sepolia-specific faucet instead.
 export const chain = sepolia;
 
-// Node: process.env. Vite/browser: swap for import.meta.env.VITE_*
+// Read from process.env: the demo CLIs (scripts/demo-*.ts) load the root .env.
+// In the Expo app these are unset (only EXPO_PUBLIC_* vars are inlined), so the
+// defaults below apply.
 const env = (k: string) =>
   (typeof process !== "undefined" ? process.env[k] : undefined) ?? "";
 

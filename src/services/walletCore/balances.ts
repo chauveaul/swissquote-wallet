@@ -32,7 +32,7 @@ export async function getTokenBalances(address: Address, tokens: Token[]) {
 
   return tokens.map((t, i) => ({
     symbol: t.symbol,
-    raw: results[i],
-    formatted: formatUnits(results[i], t.decimals),
+    raw: results[i]!,
+    formatted: formatUnits(results[i]!, t.decimals),
   }));
 }

@@ -63,7 +63,9 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "check:prices": "tsx scripts/check-prices.ts"
+    "check:prices": "tsx scripts/check-prices.ts",
+    "demo:eoa": "tsx --env-file=.env scripts/demo-eoa.ts",
+    "demo:send": "tsx --env-file=.env scripts/demo-send.ts"
   },
   "private": true,
   "jest": {

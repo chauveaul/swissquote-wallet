@@ -34,10 +34,11 @@ Expo Go is not supported: biometric-protected Keychain items need `NSFaceIDUsage
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `EXPO_PUBLIC_DEMO_MODE` | `true` | Serve the design's balances/prices/activity and simulate broadcasting. Key management is always real. |
+| `EXPO_PUBLIC_DEMO_MODE` | `false` | `true` = serve the design's balances/prices/activity and simulate broadcasting. Key management is always real. |
 | `EXPO_PUBLIC_RPC_URL_{ETH,ARB,OP,BASE,POL,SEPOLIA}` | chain's public RPC | RPC endpoints for fee estimation and broadcasting. |
 | `EXPO_PUBLIC_MARKET_DATA` | `swissquote` | `swissquote` = Swissquote's own real-time quotes for all 55 listed cryptos, daily history and FX; `kraken` = Kraken public data (intraday history, wallet tokens only); `demo` = the design's fixed sample prices. Independent of `EXPO_PUBLIC_DEMO_MODE`. |
 | `EXPO_PUBLIC_SWISSQUOTE_API_URL` | `https://www.swissquote.ch` (web dev: `/sq-api` proxy) | Base URL of the price service (e.g. a Swissquote mobile gateway). |
+| `RPC_URL`, `DEMO_PRIVATE_KEY`, `BUNDLER_URL`, `USDC_ADDRESS` | public Sepolia RPC / unset | Used only by the `demo:*` CLI scripts below, never bundled into the app (not `EXPO_PUBLIC_`). |
 
 Copy `.env.example` to `.env` to override these (`.env` is gitignored, not committed).
 
@@ -49,8 +50,8 @@ Send/Review come from the chain for real, and Confirm broadcasts a real signed t
 
 1. `npx expo start --web` (fastest iteration; localStorage/no biometrics — use a
    `run:ios`/`run:android` dev build to test the real Keychain/Face ID path).
-2. Create a wallet (fresh mnemonic — not the same address as any key used in `viem/`'s sandbox,
-   since mnemonic-derived accounts can't import a raw private key).
+2. Create a wallet (fresh mnemonic — not the same address as the `DEMO_PRIVATE_KEY` used by the
+   `demo:*` scripts, since mnemonic-derived accounts can't import a raw private key).
 3. **Accounts & networks** → select **Sepolia (testnet)**.
 4. **Receive** → copy the address, fund it from a faucet (e.g.
    https://www.alchemy.com/faucets/ethereum-sepolia or
@@ -59,6 +60,19 @@ Send/Review come from the chain for real, and Confirm broadcasts a real signed t
 6. **Send** → amount/recipient → **Review** (real estimated fee) → **Confirm** → the tx
    broadcasts; the activity entry carries a real hash — check it on
    https://sepolia.etherscan.io.
+
+### Sepolia CLI sandbox (`src/services/walletCore`)
+
+Standalone viem code for checking RPC, faucets and transfers outside the app, run from the project
+root with the root `.env`:
+
+```bash
+npm run demo:eoa                               # print address + ETH/USDC balance (creates a key if DEMO_PRIVATE_KEY is unset)
+npm run demo:send -- eth <to> <amount>         # send ETH (or `usdc`, needs USDC_ADDRESS) with DEMO_PRIVATE_KEY
+```
+
+`walletCore/account.ts` is the passkey (WebAuthn) ERC-4337 Coinbase Smart Account prototype with
+backup-owner recovery; it is browser-only and not wired into the app yet.
 
 Stay on Sepolia while `DEMO_MODE=false`: the other networks are real mainnets, and a funded
 account there would move real funds.
@@ -87,6 +101,8 @@ src/
   features/market/     Market-data hooks and the design's demo fixtures
   features/send/       Send draft, recipient validation, fees
   services/chain.ts    viem clients: fee estimation, signing, broadcast
+  services/walletCore/ Sepolia sandbox: raw-key EOA sends, ERC-20 balances, passkey smart account
+scripts/               check-prices (API contract check), demo-eoa / demo-send (Sepolia CLI)
   theme/tokens.ts      Colours, fonts and radii taken from the design
 ```
 

@@ -107,6 +107,7 @@ export async function sendUsdc(
   amount: string,
   opts: { sponsored?: boolean } = {},
 ) {
+  if (!USDC) throw new Error("USDC address not configured for this chain (set USDC_ADDRESS in .env)");
   if (!isAddress(to)) throw new Error("Invalid recipient");
   const value = parseUnits(amount, USDC_DECIMALS);
 
