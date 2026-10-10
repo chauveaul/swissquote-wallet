@@ -10,7 +10,7 @@ import { AccountAvatar } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { MIN_BUY_CHF, PAYMENT_METHOD, quoteBuy, useBuyDraft } from '@/features/buy/quote';
-import { appNow, localActivityId, useLocalActivity } from '@/features/market/queries';
+import { appNow, localActivityId, useLocalActivity, useSpotPrice } from '@/features/market/queries';
 import { QUOTE_TTL_S } from '@/features/swap/quote';
 import { accountColor } from '@/features/wallet/accountColor';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
@@ -27,6 +27,7 @@ export default function BuyReview() {
   const network = getNetwork(networkId);
   const addActivity = useLocalActivity((s) => s.add);
   const { symbol, chf, reset } = useBuyDraft();
+  const price = useSpotPrice(symbol);
   const [secondsLeft, setSecondsLeft] = useState(QUOTE_TTL_S);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,9 +41,9 @@ export default function BuyReview() {
   }, [expired]);
 
   const amount = Number(chf) || 0;
-  if (amount < MIN_BUY_CHF) return <Redirect href="/buy" />;
+  if (amount < MIN_BUY_CHF || price === null) return <Redirect href="/buy" />;
 
-  const q = quoteBuy(symbol, amount);
+  const q = quoteBuy(symbol, amount, price);
   const received = `${formatNumber(q.receive, q.decimals)} ${symbol}`;
 
   const rows: [string, string][] = [

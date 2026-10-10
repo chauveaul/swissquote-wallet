@@ -7,14 +7,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
 import { TokenMark } from '@/components/Marks';
+import { PriceStatus } from '@/components/PriceStatus';
 import { Overline, Text } from '@/components/Text';
+import { isWalletToken } from '@/features/market/catalog';
 import { useMarkets } from '@/features/market/queries';
 import { useFiat } from '@/features/settings/useFiat';
 import type { MarketToken } from '@/features/market/types';
 import { formatPercentChange } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
-function changeColor(pct: number) {
+function changeColor(pct: number | null) {
+  if (pct === null) return colors.textMuted;
   if (pct > 0) return colors.positive;
   if (pct < 0) return colors.accentText;
   return colors.textMuted;
@@ -22,12 +25,18 @@ function changeColor(pct: number) {
 
 function MarketRow({ token }: { token: MarketToken }) {
   const fiat = useFiat();
+  // Assets this wallet can't hold are dimmed but stay tappable for price and chart.
+  const holdable = isWalletToken(token.symbol);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${token.name}, ${fiat.price(token.priceChf)}, ${formatPercentChange(token.change24hPct)} today`}
+      accessibilityLabel={`${token.name}, ${fiat.price(token.priceChf)}, ${formatPercentChange(token.change24hPct)} today${holdable ? '' : ', price only, not supported by this wallet'}`}
       onPress={() => router.push({ pathname: '/token/[symbol]', params: { symbol: token.symbol } })}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceMuted }]}
+      style={({ pressed }) => [
+        styles.row,
+        !holdable && styles.dimmed,
+        pressed && { backgroundColor: colors.surfaceMuted },
+      ]}
     >
       <TokenMark label={token.mark} color={token.color} />
       <View style={styles.main}>
@@ -61,8 +70,11 @@ export default function Explore() {
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter((t) => t.name.toLowerCase().includes(q) || t.symbol.toLowerCase().includes(q));
+    const matches = q
+      ? data.filter((t) => t.name.toLowerCase().includes(q) || t.symbol.toLowerCase().includes(q))
+      : data;
+    // Tokens this wallet can hold first; each group keeps the market list's order (stable sort).
+    return [...matches].sort((a, b) => Number(isWalletToken(b.symbol)) - Number(isWalletToken(a.symbol)));
   }, [data, query]);
 
   return (
@@ -99,9 +111,10 @@ export default function Explore() {
           keyExtractor={(t) => t.symbol}
           renderItem={({ item }) => <MarketRow token={item} />}
           ListHeaderComponent={
-            <Overline accessibilityRole="header" style={styles.sectionLabel}>
-              Markets
-            </Overline>
+            <View style={styles.sectionLabel}>
+              <Overline accessibilityRole="header">Markets</Overline>
+              <PriceStatus />
+            </View>
           }
           ListEmptyComponent={
             <Text size={14} color={colors.textMuted} style={styles.empty}>
@@ -144,12 +157,16 @@ const styles = StyleSheet.create({
     outlineWidth: 0,
   },
   sectionLabel: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingTop: 16,
     paddingHorizontal: 24,
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  dimmed: { opacity: 0.45 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

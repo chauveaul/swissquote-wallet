@@ -8,7 +8,7 @@ import { AccountAvatar } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { demoQuotes } from '@/features/market/fixtures';
-import { appNow, localActivityId, useLocalActivity } from '@/features/market/queries';
+import { appNow, localActivityId, useLocalActivity, useSpotPrice } from '@/features/market/queries';
 import { useFiat } from '@/features/settings/useFiat';
 import type { Contact, FeeSpeed } from '@/features/market/types';
 import { feeFor, parseRecipient, useSendDraft } from '@/features/send/draft';
@@ -39,6 +39,7 @@ export default function Review() {
   const network = getNetwork(networkId);
   const getSigner = useWallet((s) => s.getSigner);
   const contacts = useWallet((s) => s.meta?.contacts ?? NO_CONTACTS);
+  const ethChf = useSpotPrice('ETH');
   const accounts = useWallet((s) => s.meta?.accounts ?? NO_ACCOUNTS);
   const addActivity = useLocalActivity((s) => s.add);
   const { to, amount, speed, setSpeed, reset } = useSendDraft();
@@ -53,7 +54,7 @@ export default function Review() {
   if (known?.kind === 'self') return <Redirect href="/send" />;
   const toName = known ? (known.kind === 'account' ? `${known.name} (yours)` : known.name) : 'New address';
   const value = Number(amount);
-  const fee = feeFor(speed);
+  const fee = feeFor(speed, ethChf);
   const total = value + fee.eth;
 
   const confirm = async () => {
@@ -73,7 +74,7 @@ export default function Review() {
         status: 'pending',
         eta: fee.eta,
         amount: `− ${formatNumber(value, 4)} ETH`,
-        valueChf: value * demoQuotes.ethChf,
+        valueChf: ethChf === null ? null : value * ethChf,
         timestamp: appNow(),
         hash,
         accountIndex: account.index,
@@ -99,7 +100,7 @@ export default function Review() {
           {formatNumber(value, 4)} ETH
         </Text>
         <Text size={15} color={colors.textSecondary}>
-          ≈ {fiat.format(value * demoQuotes.ethChf)}
+          ≈ {fiat.format(ethChf === null ? null : value * ethChf)}
         </Text>
       </View>
 
@@ -175,7 +176,7 @@ export default function Review() {
             {formatNumber(total, 5)} ETH
           </Text>
           <Text size={13} color={colors.textSecondary}>
-            ≈ {fiat.format(total * demoQuotes.ethChf)}
+            ≈ {fiat.format(ethChf === null ? null : total * ethChf)}
           </Text>
         </View>
       </View>

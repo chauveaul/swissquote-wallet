@@ -2,6 +2,8 @@ import { getAddress } from 'viem';
 
 import { colors } from '@/theme/tokens';
 
+import { formatPointLabel } from './labels';
+
 import type { ActivityItem, ConnectedSite, Contact, Portfolio, PricePoint, PriceRange, TokenHolding, TokenSymbol } from './types';
 
 /*
@@ -128,9 +130,6 @@ const RANGE_CFG: Record<PriceRange, { n: number; stepMin: number; vol: number; s
   ALL: { n: 60, stepMin: 60480, vol: 0.13, seed: 53 },
 };
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const pad = (x: number) => String(x).padStart(2, '0');
-
 /** Deterministic price history — same generator and seeds as the design prototype. */
 export function demoPriceSeries(range: PriceRange, end = 2907.3, seedOffset = 0): PricePoint[] {
   const cfg = RANGE_CFG[range];
@@ -148,15 +147,9 @@ export function demoPriceSeries(range: PriceRange, end = 2907.3, seedOffset = 0)
   }
   vals.reverse();
 
-  const fmt = (d: Date) => {
-    if (range === '1D') return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    if (range === '1W') return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:00`;
-    if (range === '1M') return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-    return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-  };
 
   return vals.map((value, i) => ({
     value,
-    label: fmt(new Date(DEMO_NOW - (cfg.n - 1 - i) * cfg.stepMin * 60_000)),
+    label: formatPointLabel(range, new Date(DEMO_NOW - (cfg.n - 1 - i) * cfg.stepMin * 60_000)),
   }));
 }

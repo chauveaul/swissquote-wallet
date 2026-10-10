@@ -6,6 +6,7 @@ import { LogoPlaceholder } from '@/components/Marks';
 import { Screen } from '@/components/Screen';
 import { SettingsGroup, SettingsRow } from '@/components/SettingsList';
 import { Text } from '@/components/Text';
+import { marketData } from '@/features/market/sources';
 import { useNetworkId } from '@/features/wallet/store';
 import { DEMO_MODE, LEGAL_URLS } from '@/lib/config';
 import { getNetwork, rpcUrl } from '@/lib/networks';
@@ -39,7 +40,8 @@ export default function About() {
 
       <SettingsGroup label="App">
         <SettingsRow label="Version" value={version} />
-        <SettingsRow label="Mode" value={DEMO_MODE ? 'Demo data' : 'Live'} />
+        <SettingsRow label="Balances" value={DEMO_MODE ? 'Demo data' : 'Live'} />
+        <SettingsRow label="Prices" value={marketData.name} />
         <SettingsRow label="Network" value={network.name} />
         <SettingsRow label="RPC endpoint" value={rpcHost} last />
       </SettingsGroup>

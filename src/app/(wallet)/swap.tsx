@@ -8,6 +8,7 @@ import { Icon } from '@/components/Icon';
 import { TokenPill } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
+import { tokenColor } from '@/features/market/catalog';
 import { usePortfolio } from '@/features/market/queries';
 import { useFiat } from '@/features/settings/useFiat';
 import { QUOTE_TTL_S, quoteSwap, useSwapDraft } from '@/features/swap/quote';
@@ -88,7 +89,7 @@ export default function Swap() {
               selectionColor={colors.accent}
               style={styles.amountInput}
             />
-            <TokenPill symbol={from.symbol} color={colors.token[from.symbol]} />
+            <TokenPill symbol={from.symbol} color={tokenColor(from.symbol)} />
           </View>
           <Text size={14} color={colors.textSecondary}>
             ≈ {fiat.format(payChf)}
@@ -113,7 +114,7 @@ export default function Swap() {
             <Text size={34} weight={700} style={styles.flex} numberOfLines={1}>
               {formatNumber(receiveValue, to.decimals)}
             </Text>
-            <TokenPill symbol={to.symbol} color={colors.token[to.symbol]} />
+            <TokenPill symbol={to.symbol} color={tokenColor(to.symbol)} />
           </View>
           <Text size={14} color={colors.textSecondary}>
             ≈ {fiat.format(receiveChf)}

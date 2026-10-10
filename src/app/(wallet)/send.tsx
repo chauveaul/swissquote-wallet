@@ -9,8 +9,7 @@ import { AccountAvatar, TokenPill } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { RecipientPicker } from '@/components/RecipientPicker';
 import { Overline, Text } from '@/components/Text';
-import { demoQuotes } from '@/features/market/fixtures';
-import { useToken } from '@/features/market/queries';
+import { useSpotPrice, useToken } from '@/features/market/queries';
 import { useFiat } from '@/features/settings/useFiat';
 import type { Contact } from '@/features/market/types';
 import type { AccountMeta } from '@/features/wallet/store';
@@ -39,7 +38,8 @@ export default function Send() {
   const accounts = useWallet((s) => s.meta?.accounts ?? NO_ACCOUNTS);
   const known = identifyRecipient(recipient, account.index, accounts, contacts);
   const value = Number(amount) || 0;
-  const fee = feeFor(speed).eth;
+  const ethChf = useSpotPrice('ETH');
+  const fee = feeFor(speed, ethChf).eth;
 
   const amountError =
     value <= 0 ? 'Enter an amount.' : value + fee > balance ? 'Insufficient balance to cover amount and network fee.' : null;
@@ -179,7 +179,7 @@ export default function Send() {
           </View>
           <View style={styles.amountMeta}>
             <Text size={14} color={colors.textSecondary}>
-              ≈ {fiat.format(value * demoQuotes.ethChf)}
+              ≈ {fiat.format(ethChf === null ? null : value * ethChf)}
             </Text>
             <Text size={14} color={colors.textSecondary}>
               Balance {formatNumber(balance, 4)} ETH

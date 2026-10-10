@@ -19,7 +19,7 @@ export const KIND_LABEL: Record<ActivityKind, string> = {
   buy: 'Buy',
 };
 
-type Fiat = { format: (chf: number, decimals?: number) => string };
+type Fiat = { format: (chf: number | null, decimals?: number) => string };
 
 /** "EUR 768.61", or "Fee EUR 0.89" for fee-only entries such as approvals. */
 export function activityValueLabel(item: ActivityItem, fiat: Fiat): string {

@@ -6,7 +6,7 @@ import {
   HankenGrotesk_700Bold,
 } from '@expo-google-fonts/hanken-grotesk';
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useFonts } from 'expo-font';
 import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -15,7 +15,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useWallet } from '@/features/wallet/store';
 import { useAutoLock } from '@/features/wallet/useAutoLock';
-import { queryClient } from '@/lib/queryClient';
+import { persistOptions, queryClient } from '@/lib/queryClient';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -67,7 +67,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <KeyboardProvider>
-        <QueryClientProvider client={queryClient}>
+        <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
           <Stack
             screenOptions={{
               headerShown: false,
@@ -98,7 +98,7 @@ export default function RootLayout() {
           {/* Previous / next / Done above every keyboard, so number pads (which
               have no return key) can always be closed. */}
           <KeyboardToolbar theme={KEYBOARD_TOOLBAR_THEME} doneText="Done" />
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </KeyboardProvider>
     </SafeAreaProvider>
   );

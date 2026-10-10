@@ -2,7 +2,8 @@ import type { Address } from 'viem';
 
 import type { NetworkId } from '@/lib/networks';
 
-export type TokenSymbol = 'ETH' | 'WBTC' | 'USDC' | 'LINK';
+/** Ticker, e.g. "ETH". Any asset in the catalog (src/features/market/catalog.ts). */
+export type TokenSymbol = string;
 
 export type TokenHolding = {
   symbol: TokenSymbol;
@@ -15,11 +16,15 @@ export type TokenHolding = {
   displayDecimals: number;
   valueChf: number;
   change24hPct: number;
+  /** False when no live price exists: value is unknown, not zero (shown as "—"). */
+  priceAvailable?: boolean;
 };
 
 /** Token as listed on the market, independent of any holding. */
-export type MarketToken = Pick<TokenHolding, 'symbol' | 'name' | 'mark' | 'color' | 'change24hPct'> & {
-  priceChf: number;
+export type MarketToken = Pick<TokenHolding, 'symbol' | 'name' | 'mark' | 'color'> & {
+  /** Latest CHF price; null when no price is available (shown as "—"). */
+  priceChf: number | null;
+  change24hPct: number | null;
 };
 
 export type Portfolio = {
@@ -44,8 +49,8 @@ export type ActivityItem = {
   /** Shown next to "Pending" (e.g. "~ 30 sec"). */
   eta?: string;
   amount: string;
-  /** Value in CHF, shown in the display currency. */
-  valueChf: number;
+  /** Value in CHF, shown in the display currency; null if no price was available. */
+  valueChf: number | null;
   /** The value is only the fee paid (e.g. token approvals). */
   valueIsFee?: boolean;
   /** Unix ms; used for grouping by day. */
@@ -58,7 +63,7 @@ export type ActivityItem = {
   /** Recipient (send), sender (receive) or approved spender (approve). */
   counterparty?: { label?: string; address: Address };
   /** Network fee: native amount (e.g. "0.00042 ETH") and its CHF value. */
-  fee?: { native?: string; chf: number };
+  fee?: { native?: string; chf: number | null };
   swap?: { paid: string; received: string; rate: string; minReceived: string };
   purchase?: { paid: string; price: string; paymentMethod: string; fee: string };
   failureReason?: string;

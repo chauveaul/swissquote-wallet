@@ -22,8 +22,9 @@ export function signPrefix(value: number): string {
   return '';
 }
 
-/** `+ 3.10%`, `− 0.85%`, `0.00%` */
-export function formatPercentChange(pct: number): string {
+/** `+ 3.10%`, `− 0.85%`, `0.00%`; "—" when unknown. */
+export function formatPercentChange(pct: number | null): string {
+  if (pct === null) return '—';
   return `${signPrefix(pct)}${Math.abs(pct).toFixed(2)}%`;
 }
 

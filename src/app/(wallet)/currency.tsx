@@ -21,7 +21,7 @@ export default function DisplayCurrency() {
       <View accessibilityRole="radiogroup" accessibilityLabel="Display currency">
         <SettingsGroup
           label="Show values in"
-          footer="Balances, prices and fees are converted for display. Purchases are always paid in CHF from your Swissquote account. Exchange rates are indicative (demo)."
+          footer="Balances, prices and fees are converted at live exchange rates, refreshed every minute. If a rate is unavailable, values are shown in CHF. Purchases are always paid in CHF from your Swissquote account."
         >
           {CURRENCIES.map((c, i) => (
             <SettingsRow

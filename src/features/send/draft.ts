@@ -46,7 +46,8 @@ export function findContact(contacts: readonly Contact[], address: Address | nul
   return contacts.find((c) => c.address.toLowerCase() === address.toLowerCase()) ?? null;
 }
 
-export function feeFor(speed: FeeSpeed) {
+/** Network fee for a speed; `chf` is null when no ETH price is available. */
+export function feeFor(speed: FeeSpeed, ethChf: number | null) {
   const eth = demoQuotes.feeEth[speed];
-  return { eth, chf: eth * demoQuotes.ethChf, eta: demoQuotes.feeEta[speed] };
+  return { eth, chf: ethChf === null ? null : eth * ethChf, eta: demoQuotes.feeEta[speed] };
 }

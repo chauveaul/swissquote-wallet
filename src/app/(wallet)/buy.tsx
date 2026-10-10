@@ -8,7 +8,8 @@ import { TokenPill } from '@/components/Marks';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { TokenPicker } from '@/components/TokenPicker';
-import { useMarkets } from '@/features/market/queries';
+import { isWalletToken, tokenColor } from '@/features/market/catalog';
+import { useMarkets, useSpotPrice } from '@/features/market/queries';
 import { MAX_BUY_CHF, MIN_BUY_CHF, PAYMENT_METHOD, quoteBuy, useBuyDraft } from '@/features/buy/quote';
 import { useNetworkId, useSelectedAccount } from '@/features/wallet/store';
 import { formatChf, formatNumber, truncateAddress } from '@/lib/format';
@@ -22,10 +23,12 @@ export default function Buy() {
   const { symbol, chf, setSymbol, setChf } = useBuyDraft();
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
-  const { data: tokens = [] } = useMarkets();
+  // Only tokens this wallet can receive can be bought into it.
+  const tokens = useMarkets().data.filter((t) => isWalletToken(t.symbol));
+  const price = useSpotPrice(symbol);
 
   const amount = Number(chf) || 0;
-  const q = quoteBuy(symbol, amount);
+  const q = quoteBuy(symbol, amount, price);
 
   const details: [string, string][] = [
     ['Price', q.priceLabel],
@@ -39,6 +42,7 @@ export default function Buy() {
     setError(null);
     if (amount < MIN_BUY_CHF) return setError(`The minimum purchase is ${formatChf(MIN_BUY_CHF)}.`);
     if (amount > MAX_BUY_CHF) return setError(`The maximum purchase is ${formatChf(MAX_BUY_CHF)}.`);
+    if (price === null) return setError(`No live ${symbol} price right now. Try again in a moment.`);
     router.push('/buy-review');
   };
 
@@ -83,7 +87,7 @@ export default function Buy() {
             <Text size={34} weight={700} style={styles.flex} numberOfLines={1}>
               {formatNumber(q.receive, q.decimals)}
             </Text>
-            <TokenPill symbol={symbol} color={colors.token[symbol]} onPress={() => setPicking(true)} />
+            <TokenPill symbol={symbol} color={tokenColor(symbol)} onPress={() => setPicking(true)} />
           </View>
         </View>
       </View>

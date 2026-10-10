@@ -21,4 +21,32 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
+// Development only: Swissquote's price service sends no CORS headers, so the
+// web preview calls `/sq-api/*` on the dev server, which forwards it. Native
+// apps call Swissquote directly. Only the price service paths are forwarded.
+const SQ_PREFIXES = ['/sq-api/securities-retail-chart-plugin/api/chart/', '/sq-api/web-market-quote/api/fullquote/'];
+config.server = {
+  ...config.server,
+  enhanceMiddleware: (middleware) => async (req, res, next) => {
+    if (!req.url || !SQ_PREFIXES.some((p) => req.url.startsWith(p))) return middleware(req, res, next);
+    try {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const upstream = await fetch(`https://www.swissquote.ch${req.url.slice('/sq-api'.length)}`, {
+        method: req.method,
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: req.method === 'GET' || req.method === 'HEAD' ? undefined : Buffer.concat(chunks),
+        signal: AbortSignal.timeout(10_000),
+      });
+      res.statusCode = upstream.status;
+      res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'application/json');
+      res.end(Buffer.from(await upstream.arrayBuffer()));
+    } catch {
+      res.statusCode = 502;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ errorCode: 'PROXY', message: 'Swissquote price service unreachable.' }));
+    }
+  },
+};
+
 module.exports = config;

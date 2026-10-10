@@ -1,5 +1,4 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
 import { router, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,10 +29,13 @@ function changeColor(pct: number) {
 
 function TokenRow({ token }: { token: TokenHolding }) {
   const fiat = useFiat();
+  // No live price: the value is unknown, not zero.
+  const priced = token.priceAvailable !== false;
+  const value = priced ? fiat.format(token.valueChf) : '—';
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${token.name}, ${formatNumber(token.amount, token.displayDecimals)} ${token.symbol}, ${fiat.format(token.valueChf)}`}
+      accessibilityLabel={`${token.name}, ${formatNumber(token.amount, token.displayDecimals)} ${token.symbol}, ${value}`}
       onPress={() => router.push({ pathname: '/token/[symbol]', params: { symbol: token.symbol } })}
       style={({ pressed }) => [styles.tokenRow, pressed && { backgroundColor: colors.surfaceMuted }]}
     >
@@ -48,10 +50,10 @@ function TokenRow({ token }: { token: TokenHolding }) {
       </View>
       <View style={styles.tokenValue}>
         <Text size={16} weight={600}>
-          {fiat.format(token.valueChf)}
+          {value}
         </Text>
-        <Text size={13} weight={600} color={changeColor(token.change24hPct)}>
-          {formatPercentChange(token.change24hPct)}
+        <Text size={13} weight={600} color={priced ? changeColor(token.change24hPct) : colors.textMuted}>
+          {priced ? formatPercentChange(token.change24hPct) : '—'}
         </Text>
       </View>
     </Pressable>
@@ -62,12 +64,15 @@ function TokenRow({ token }: { token: TokenHolding }) {
 export default function Home() {
   const fiat = useFiat();
   const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
   const account = useSelectedAccount();
   const network = getNetwork(useNetworkId());
-  const { data: portfolio, isRefetching } = usePortfolio(account.index);
+  const { data: portfolio, isRefetching, refetch } = usePortfolio(account.index);
 
   const change = portfolio?.changeTodayChf ?? 0;
+  // Tokens held without a live price: their value is unknown, so the total is partial or unknown.
+  const held = portfolio?.tokens ?? [];
+  const unpriced = held.filter((t) => t.priceAvailable === false).length;
+  const totalUnknown = held.length > 0 && unpriced === held.length;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -115,7 +120,7 @@ export default function Home() {
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['portfolio'] })}
+            onRefresh={refetch}
           />
         }
       >
@@ -126,17 +131,29 @@ export default function Home() {
               {fiat.code}
             </Text>
             <Text size={44} weight={700} tracking={-0.02} lineHeight={1} tabular>
-              {fiat.number(portfolio?.totalChf ?? 0)}
+              {totalUnknown ? '—' : fiat.number(portfolio?.totalChf ?? 0)}
             </Text>
           </View>
-          <View style={styles.changeRow}>
-            <Text size={14} weight={600} color={changeColor(change)}>
-              {signPrefix(change)}{fiat.format(Math.abs(change))} ({Math.abs(portfolio?.changeTodayPct ?? 0).toFixed(2)}%)
+          {totalUnknown ? (
+            <Text accessibilityRole="alert" size={14} weight={600} color={colors.accentText}>
+              Prices unavailable right now
             </Text>
-            <Text size={14} color={colors.textMuted}>
-              Today
+          ) : (
+            <View style={styles.changeRow}>
+              <Text size={14} weight={600} color={changeColor(change)}>
+                {signPrefix(change)}
+                {fiat.format(Math.abs(change))} ({Math.abs(portfolio?.changeTodayPct ?? 0).toFixed(2)}%)
+              </Text>
+              <Text size={14} color={colors.textMuted}>
+                Today
+              </Text>
+            </View>
+          )}
+          {unpriced > 0 && !totalUnknown ? (
+            <Text size={13} color={colors.textMuted}>
+              Excludes {unpriced} token{unpriced > 1 ? 's' : ''} without a live price
             </Text>
-          </View>
+          ) : null}
         </View>
 
         <View style={styles.actions}>
