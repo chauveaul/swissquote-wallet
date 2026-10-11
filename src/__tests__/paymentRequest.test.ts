@@ -22,6 +22,12 @@ describe('parsePaymentRequest', () => {
     });
   });
 
+  it('rejects an absurd exponent cleanly instead of crashing', () => {
+    for (const value of ['1e999999999', '1e78', '5e1000']) {
+      expect(() => parsePaymentRequest(`ethereum:${MIA}?value=${value}`, MAINNET)).toThrow(PaymentRequestError);
+    }
+  });
+
   it('rejects requests for another network', () => {
     expect(() => parsePaymentRequest(`ethereum:${MIA}@42161`, MAINNET)).toThrow(/Arbitrum One/);
     expect(() => parsePaymentRequest(`ethereum:${MIA}@999999`, MAINNET)).toThrow(/doesn’t support/);

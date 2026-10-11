@@ -19,11 +19,19 @@ export class PaymentRequestError extends Error {
 
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
+/**
+ * Largest exponent accepted in a scanned amount. 1e77 wei already exceeds any
+ * possible balance (uint256 max ≈ 1.16e77), and an unbounded one would make
+ * `'0'.repeat()` throw (or allocate gigabytes) on a hostile QR code.
+ */
+const MAX_EXPONENT = 77;
+
 /** Exact integer from a decimal or scientific string (`1000`, `2.014e18`); null if not an integer. */
 function toBigInt(value: string): bigint | null {
   const m = /^(\d+)(?:\.(\d+))?(?:[eE]\+?(\d+))?$/.exec(value);
   if (!m) return null;
   const [, int = '', frac = '', exp = '0'] = m;
+  if (Number(exp) > MAX_EXPONENT) return null;
   const shift = Number(exp) - frac.length;
   if (shift < 0) {
     // Only valid if the dropped digits are zeros (e.g. "1.50e1" = 15).

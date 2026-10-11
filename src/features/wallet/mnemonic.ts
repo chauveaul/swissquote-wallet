@@ -24,9 +24,10 @@ export function normalizeWords(words: readonly string[]): string {
 
 /** Validates word count, wordlist membership and the BIP-39 checksum. */
 export function isValidMnemonic(phrase: string): boolean {
-  const count = phrase.split(' ').length;
+  const normalized = normalizeWords(phrase.split(/\s+/));
+  const count = normalized.split(' ').length;
   if (count !== 12 && count !== 24) return false;
-  return bip39Validate(phrase, wordlist);
+  return bip39Validate(normalized, wordlist);
 }
 
 export function isWordInList(word: string): boolean {

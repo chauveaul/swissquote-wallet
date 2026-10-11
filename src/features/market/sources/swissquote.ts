@@ -1,4 +1,4 @@
-import type { Candle } from '@/services/marketData';
+import { allOrAbort, type Candle } from '@/services/marketData';
 import { fetchCandles, type Instrument, type Resolution } from '@/services/swissquote/chartApi';
 import { fetchFullQuotes } from '@/services/swissquote/quoteApi';
 
@@ -69,16 +69,19 @@ export const swissquoteSource: MarketDataSource = {
     const now = Date.now();
     const from = rangeStart(range, now);
     const to = new Date(now + DAY);
-    const series = (resolution: Resolution) =>
-      Promise.all([
-        fetchCandles(instrument, from, to, { signal, resolution }),
-        fetchCandles(FX_INSTRUMENTS.USD, from, to, { signal, resolution }),
-      ]).then(([asset, fx]) => convertCandles(asset.candles, fx.candles));
+    const series = (resolution: Resolution, parent = signal) =>
+      allOrAbort(parent, [
+        (s) => fetchCandles(instrument, from, to, { signal: s, resolution }),
+        (s) => fetchCandles(FX_INSTRUMENTS.USD, from, to, { signal: s, resolution }),
+      ] as const).then(([asset, fx]) => convertCandles(asset.candles, fx.candles));
 
     // 1D and 1W use hourly candles. Intraday only reaches back ~4.7 days, so
     // 1W fills the older days with daily candles.
     if (range === '1D' || range === '1W') {
-      const [hourly, daily] = await Promise.all([series('intraday'), range === '1W' ? series('histo') : []]);
+      const [hourly, daily] = await allOrAbort(signal, [
+        (s) => series('intraday', s),
+        (s) => (range === '1W' ? series('histo', s) : Promise.resolve([])),
+      ] as const);
       if (hourly.length > 1) {
         const firstHour = hourly[0]!.time;
         const cutoff = range === '1D' ? now - DAY : 0;

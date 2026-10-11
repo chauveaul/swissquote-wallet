@@ -16,6 +16,33 @@ export class MarketDataError extends Error {
   }
 }
 
+/**
+ * Runs fetch legs in parallel under one shared signal: when any leg fails, the
+ * others are aborted instead of running on to their own timeout. Also aborts
+ * them all if the caller's `signal` fires.
+ */
+export async function allOrAbort<T extends readonly unknown[]>(
+  signal: AbortSignal | undefined,
+  legs: { [K in keyof T]: (signal: AbortSignal) => Promise<T[K]> },
+): Promise<T> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener('abort', abort);
+  try {
+    return (await Promise.all(
+      legs.map((leg) =>
+        leg(controller.signal).catch((e: unknown) => {
+          controller.abort();
+          throw e;
+        }),
+      ),
+    )) as unknown as T;
+  } finally {
+    signal?.removeEventListener('abort', abort);
+  }
+}
+
 /** fetch with a hard timeout, chained to an optional caller signal. */
 export async function fetchWithTimeout(
   url: string,

@@ -7,7 +7,7 @@ import { showToast } from '@/components/Toast';
 import { useNetworkId, useSelectedAccount, useWallet, type AccountMeta } from '@/features/wallet/store';
 import { DEMO_MODE, MARKET_DATA } from '@/lib/config';
 import { ERC20, ERC20_DECIMALS } from '@/lib/erc20';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, MONTHS } from '@/lib/format';
 import { getNetwork, networks, type NetworkId } from '@/lib/networks';
 import { fetchTokenTransfers, fetchTransactions, type ChainTokenTransfer, type ChainTx } from '@/services/blockscout/historyApi';
 import { estimateFees, getNativeBalance, publicClient } from '@/services/chain';
@@ -98,9 +98,7 @@ export function valuePortfolio(base: Portfolio, quotes: Map<TokenSymbol, Quote |
  * No indexer yet, so only the native balance is read; WBTC/USDC/LINK stay
  * demo-only.
  */
-async function liveNativePortfolio(networkId: NetworkId, address: Address, ethChf: number | null): Promise<Portfolio> {
-  const { wei } = await getNativeBalance(networkId, address);
-  const amount = toEther(wei);
+export function liveNativePortfolio(amount: number, ethChf: number | null): Portfolio {
   if (amount <= 0) return EMPTY_PORTFOLIO;
   const valueChf = amount * (ethChf ?? demoQuotes.ethChf);
   const eth: TokenHolding = {
@@ -124,9 +122,11 @@ export function usePortfolio(accountIndex: number) {
   const queryClient = useQueryClient();
   const ethChf = quotes.bySymbol.get('ETH')?.price ?? null;
 
+  // Keyed on the balance's identity only, not the price: a new ETH quote must
+  // revalue the cached balance, not start a fresh (empty) query.
   const live = useQuery({
-    queryKey: ['portfolio', accountIndex, address, networkId, ethChf],
-    queryFn: () => (address ? liveNativePortfolio(networkId, address, ethChf) : Promise.resolve(EMPTY_PORTFOLIO)),
+    queryKey: ['portfolio', accountIndex, address, networkId],
+    queryFn: async () => (address ? toEther((await getNativeBalance(networkId, address)).wei) : 0),
     enabled: !DEMO_MODE,
     staleTime: 5_000,
     // Poll so faucet deposits and confirmations appear without a refresh.
@@ -143,7 +143,12 @@ export function usePortfolio(accountIndex: number) {
   }, [live, queryClient]);
 
   if (DEMO_MODE) return { data: demoData, isRefetching: quotes.isRefetching, refetch, delayed: quotes.delayed };
-  return { data: live.data ?? EMPTY_PORTFOLIO, isRefetching: live.isRefetching || quotes.isRefetching, refetch, delayed: quotes.delayed };
+  return {
+    data: live.data === undefined ? EMPTY_PORTFOLIO : liveNativePortfolio(live.data, ethChf),
+    isRefetching: live.isRefetching || quotes.isRefetching,
+    refetch,
+    delayed: quotes.delayed,
+  };
 }
 
 export type NetworkBalance = { networkId: NetworkId; name: string; mark: string; amount: number; valueChf: number | null };
@@ -507,11 +512,6 @@ export function useActivity() {
 }
 
 export type ActivityGroup = { label: string; items: ActivityItem[] };
-
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 /** Groups by calendar day: "Today", then "8 October 2026". */
 export function groupActivity(items: ActivityItem[], now = appNow()): ActivityGroup[] {

@@ -25,9 +25,24 @@ export const useSendDraft = create<SendDraft>((set) => ({
   reset: () => set(initial),
 }));
 
-/** Keeps a decimal string: digits and a single `.` (commas become dots). */
+/**
+ * Keeps a decimal string: digits and a single `.`. Separators are read the way
+ * people write them: a lone comma is a decimal point ("0,5"); with both kinds
+ * the last one is the decimal point and the others group thousands
+ * ("1,234.56" and "1.234,56" are both 1234.56); several commas and no dot are
+ * all grouping ("1,234,567").
+ */
 export function sanitizeAmount(input: string): string {
-  const s = input.replace(',', '.').replace(/[^\d.]/g, '');
+  const commas = (input.match(/,/g) ?? []).length;
+  const hasDot = input.includes('.');
+  let normalized = input;
+  if (commas > 1 && !hasDot) {
+    normalized = input.replace(/,/g, '');
+  } else if (commas > 0 && hasDot) {
+    const last = Math.max(input.lastIndexOf('.'), input.lastIndexOf(','));
+    normalized = `${input.slice(0, last).replace(/[.,]/g, '')}.${input.slice(last + 1)}`;
+  }
+  const s = normalized.replace(',', '.').replace(/[^\d.]/g, '');
   const [int = '', ...rest] = s.split('.');
   return rest.length ? `${int}.${rest.join('')}` : int;
 }

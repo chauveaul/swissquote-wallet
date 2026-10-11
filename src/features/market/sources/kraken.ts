@@ -1,4 +1,5 @@
 import { fetchOhlc, fetchTickers, type OhlcInterval } from '@/services/kraken/krakenApi';
+import { allOrAbort } from '@/services/marketData';
 
 import { convertCandles, toPricePoints, type Quote } from '../series';
 import type { PriceRange, TokenSymbol } from '../types';
@@ -66,10 +67,10 @@ export const krakenSource: MarketDataSource = {
     if (!cfg) return [];
     const { interval, lookback } = RANGE_CANDLES[range];
     const since = new Date(Number.isFinite(lookback) ? Date.now() - lookback : 0);
-    const [candles, fx] = await Promise.all([
-      fetchOhlc(cfg.pair, interval, since, signal),
-      cfg.quote === 'USD' ? fetchOhlc('USD/CHF', interval, since, signal) : Promise.resolve(null),
-    ]);
+    const [candles, fx] = await allOrAbort(signal, [
+      (s) => fetchOhlc(cfg.pair, interval, since, s),
+      (s) => (cfg.quote === 'USD' ? fetchOhlc('USD/CHF', interval, since, s) : Promise.resolve(null)),
+    ] as const);
     const chf = fx ? convertCandles(candles, fx) : candles;
     return toPricePoints({ previousClose: null, candles: chf }, range);
   },

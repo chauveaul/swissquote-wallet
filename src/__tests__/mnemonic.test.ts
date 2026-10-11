@@ -17,6 +17,12 @@ describe('mnemonic', () => {
     expect(isValidMnemonic('test test test')).toBe(false);
   });
 
+  it('accepts a valid phrase with stray whitespace', () => {
+    const phrase = generateMnemonic(12);
+    const messy = `  ${phrase.split(' ').join('  ').replace(' ', '\n')}\t`;
+    expect(isValidMnemonic(messy)).toBe(true);
+  });
+
   it('normalizes user input', () => {
     expect(normalizeWords([' Test', 'JUNK ', ''])).toBe('test junk');
     expect(isWordInList('Abandon')).toBe(true);
