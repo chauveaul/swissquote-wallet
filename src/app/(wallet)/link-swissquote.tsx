@@ -86,7 +86,7 @@ export default function LinkSwissquote() {
   return (
     <Screen background={colors.surfaceMuted} paddingHorizontal={16} gap={16}>
       <View style={styles.header}>
-        <NavHeader title="Link Swissquote account" />
+        <NavHeader title="Link Swissquote account" onBack={() => router.dismissTo('/settings')} />
       </View>
 
       <Callout tone="info">

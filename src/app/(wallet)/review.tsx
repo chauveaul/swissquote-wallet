@@ -20,7 +20,6 @@ import { DEMO_MODE } from '@/lib/config';
 import { formatNumber, truncateAddress } from '@/lib/format';
 import { getNetwork } from '@/lib/networks';
 import { sendNative } from '@/services/chain';
-import { confirmSwissquoteDeposit } from '@/services/swissquoteMock';
 import { colors, radii } from '@/theme/tokens';
 
 const SPEEDS: { id: FeeSpeed; label: string }[] = [
@@ -76,14 +75,6 @@ export default function Review() {
       if (!DEMO_MODE) {
         hash = await sendNative({ signer: getSigner(account.index), networkId, to: recipient, amount, speed });
       }
-      if (hash && known?.kind === 'swissquote' && swissquote) {
-        // The on-chain transfer already succeeded — a failure here just means
-        // the mock server hasn't credited the CHF ledger yet, not that the
-        // money didn't move. Never block/fail the activity entry on it.
-        confirmSwissquoteDeposit(swissquote.customerId, networkId, hash).catch((e: unknown) => {
-          console.warn('[swissquote] deposit not confirmed with the mock server yet:', e);
-        });
-      }
       addActivity({
         id: hash ?? localActivityId(),
         kind: 'send',
@@ -98,6 +89,10 @@ export default function Review() {
         networkId,
         counterparty: { label: known?.name, address: recipient },
         fee: { native: `${formatNumber(fee.eth, 5)} ETH`, chf: fee.chf },
+        // The confirmation poller (root layout) notifies the mock server once
+        // this is actually mined — not here, since the tx may not be mined
+        // yet and a one-shot attempt with no retry can silently lose it.
+        swissquoteCustomerId: known?.kind === 'swissquote' ? swissquote?.customerId : undefined,
       });
       reset();
       router.dismissTo('/activity');

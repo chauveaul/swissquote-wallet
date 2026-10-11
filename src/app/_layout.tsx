@@ -13,6 +13,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { KeyboardProvider, KeyboardToolbar } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { useActivityConfirmations } from '@/features/market/queries';
 import { useWallet } from '@/features/wallet/store';
 import { useAutoLock } from '@/features/wallet/useAutoLock';
 import { persistOptions, queryClient } from '@/lib/queryClient';
@@ -37,6 +38,9 @@ export default function RootLayout() {
   const hydrate = useWallet((s) => s.hydrate);
 
   useAutoLock();
+  // Keeps polling for pending sends (incl. Swissquote deposit confirmation)
+  // regardless of which screen is open — see the hook's own comment.
+  useActivityConfirmations();
 
   useEffect(() => {
     hydrate().catch((e) => {
