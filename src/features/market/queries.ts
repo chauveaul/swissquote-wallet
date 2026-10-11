@@ -3,6 +3,7 @@ import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { create } from 'zustand';
 
+import { showToast } from '@/components/Toast';
 import { useNetworkId, useSelectedAccount, useWallet, type AccountMeta } from '@/features/wallet/store';
 import { DEMO_MODE, MARKET_DATA } from '@/lib/config';
 import { formatNumber } from '@/lib/format';
