@@ -9,6 +9,7 @@ import { formatNumber } from '@/lib/format';
 import { getNetwork, networks, type NetworkId } from '@/lib/networks';
 import { fetchTransactions, type ChainTx } from '@/services/blockscout/historyApi';
 import { estimateFees, getNativeBalance, publicClient } from '@/services/chain';
+import { confirmSwissquoteDeposit } from '@/services/swissquoteMock';
 import { colors } from '@/theme/tokens';
 
 import { assetName, CRYPTO_CATALOG, tokenColor, tokenMark, WALLET_TOKENS } from './catalog';
@@ -273,9 +274,13 @@ export const useLocalActivity = create<LocalActivity>((set) => ({
 
 /**
  * Live mode only: poll for receipts of pending sends and flip them to
- * confirmed/failed. No-op in demo mode.
+ * confirmed/failed. No-op in demo mode. Call this once, high up in the tree
+ * (the root layout) so it keeps running regardless of which screen is open —
+ * it must NOT only run while the Activity tab happens to be mounted, since a
+ * Swissquote deposit (below) needs to be reported to the mock server even if
+ * the user never opens Activity at all.
  */
-function useActivityConfirmations() {
+export function useActivityConfirmations() {
   const items = useLocalActivity((s) => s.items);
   const update = useLocalActivity((s) => s.update);
 
@@ -288,12 +293,29 @@ function useActivityConfirmations() {
     const tick = async () => {
       for (const item of pending) {
         if (!active) return;
+        let receipt;
         try {
-          const receipt = await publicClient(item.networkId).getTransactionReceipt({ hash: item.hash as Hash });
-          update(item.id, { status: receipt.status === 'success' ? 'confirmed' : 'failed', eta: undefined });
+          receipt = await publicClient(item.networkId).getTransactionReceipt({ hash: item.hash as Hash });
         } catch {
-          // No receipt yet — still pending.
+          continue; // Not mined yet — still pending, try again next tick.
         }
+        if (receipt.status !== 'success') {
+          update(item.id, { status: 'failed', eta: undefined });
+          continue;
+        }
+        if (item.swissquoteCustomerId) {
+          // Only flip to confirmed once the mock server has actually
+          // acknowledged the deposit — if it's unreachable or rejects it,
+          // stay pending and retry next tick rather than losing the credit
+          // silently (it already landed on-chain regardless).
+          try {
+            await confirmSwissquoteDeposit(item.swissquoteCustomerId, item.networkId, item.hash as Hash);
+          } catch (e) {
+            console.warn('[swissquote] deposit not confirmed with the mock server yet, will retry:', e);
+            continue;
+          }
+        }
+        update(item.id, { status: 'confirmed', eta: undefined });
       }
     };
     tick();
@@ -360,7 +382,8 @@ export function mergeActivity(local: ActivityItem[], chain: ActivityItem[]): Act
  * app restarts; sends from this device show immediately, before they're indexed.
  */
 export function useActivity() {
-  useActivityConfirmations();
+  // Polling runs globally from the root layout, not here — see
+  // useActivityConfirmations's own comment for why.
   const account = useSelectedAccount();
   const allLocal = useLocalActivity((s) => s.items);
   const ethChf = useQuotes().bySymbol.get('ETH')?.price ?? null;

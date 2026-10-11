@@ -14,6 +14,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { FocusedKeyboardToolbar } from '@/components/FocusedKeyboardToolbar';
+import { useActivityConfirmations } from '@/features/market/queries';
 import { useWallet } from '@/features/wallet/store';
 import { useAutoLock } from '@/features/wallet/useAutoLock';
 import { closeKeyboard } from '@/lib/keyboard';
@@ -39,6 +40,9 @@ export default function RootLayout() {
   const hydrate = useWallet((s) => s.hydrate);
 
   useAutoLock();
+  // Keeps polling for pending sends (incl. Swissquote deposit confirmation)
+  // regardless of which screen is open — see the hook's own comment.
+  useActivityConfirmations();
 
   useEffect(() => {
     hydrate().catch((e) => {

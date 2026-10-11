@@ -90,7 +90,7 @@ export default function SwissquoteAccount() {
   return (
     <Screen background={colors.surfaceMuted} paddingHorizontal={16} gap={16}>
       <View style={styles.header}>
-        <NavHeader title="Swissquote account" />
+        <NavHeader title="Swissquote account" onBack={() => router.dismissTo('/settings')} />
       </View>
 
       <Callout tone="info">

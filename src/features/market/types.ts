@@ -67,6 +67,9 @@ export type ActivityItem = {
   swap?: { paid: string; received: string; rate: string; minReceived: string };
   purchase?: { paid: string; price: string; paymentMethod: string; fee: string };
   failureReason?: string;
+  /** Set when this send is a deposit to the linked Swissquote account — tells
+   * the confirmation poller to notify the mock server once it's mined. */
+  swissquoteCustomerId?: string;
 };
 
 export type Contact = { name: string; address: Address };
