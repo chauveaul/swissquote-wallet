@@ -17,8 +17,10 @@ const formatDate = (t: number) => {
 };
 
 /**
- * Settings → Connected sites. Not drawn in the design. Sessions are demo data
- * until a dApp connection protocol (e.g. WalletConnect) is integrated.
+ * Settings → Connected sites. Not drawn in the design. In demo mode, seeded
+ * with fixture sessions; in live mode, these are real connections made
+ * through the in-app dApp browser (`dapps/browser.tsx`) via its injected
+ * EIP-1193 provider.
  */
 export default function ConnectedSites() {
   const sites = useWallet((s) => s.meta?.connectedSites ?? []);

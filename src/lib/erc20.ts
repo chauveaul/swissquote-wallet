@@ -22,3 +22,13 @@ export const ERC20_DECIMALS: Record<'USDC' | 'LINK', number> = { USDC: 6, LINK: 
 export function erc20Address(id: NetworkId, token: 'USDC' | 'LINK'): Address | undefined {
   return ERC20[id]?.[token];
 }
+
+/** Which of our supported ERC-20s a token address is on this network, if any. */
+export function erc20AssetFor(networkId: NetworkId, tokenAddress: Address): 'USDC' | 'LINK' | null {
+  const tokens = ERC20[networkId];
+  if (!tokens) return null;
+  const lower = tokenAddress.toLowerCase();
+  if (tokens.USDC?.toLowerCase() === lower) return 'USDC';
+  if (tokens.LINK?.toLowerCase() === lower) return 'LINK';
+  return null;
+}
