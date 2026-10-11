@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Overline, Text } from '@/components/Text';
-import { useWallet } from '@/features/wallet/store';
+import { useSelectedAccount, useWallet } from '@/features/wallet/store';
 import { formatAutoLock } from '@/lib/autoLock';
 import { networks } from '@/lib/networks';
 import { colors, radii } from '@/theme/tokens';
@@ -18,6 +18,8 @@ export default function Settings() {
   const insets = useSafeAreaInsets();
   const lock = useWallet((s) => s.lock);
   const meta = useWallet((s) => s.meta);
+  const account = useSelectedAccount();
+  const multipleAccounts = (meta?.accounts.length ?? 0) > 1;
   const biometrics = meta?.biometrics ?? false;
   const autoLock = formatAutoLock(meta?.autoLockMs ?? 60_000);
   const contacts = meta?.contacts.length ?? 0;
@@ -28,7 +30,8 @@ export default function Settings() {
     {
       label: 'Security & privacy',
       rows: [
-        { label: 'Reveal recovery phrase', href: '/recovery-phrase' },
+        // Each account has its own phrase: this one belongs to the selected account.
+        { label: 'Reveal recovery phrase', value: multipleAccounts ? account.name : undefined, href: '/recovery-phrase' },
         { label: 'Biometrics & auto-lock', value: `${biometrics ? '' : 'Off · '}${autoLock}`, href: '/security' },
         { label: 'Connected sites', value: String(meta?.connectedSites.length ?? 0), href: '/connected-sites' },
         // Not in the design: removes the wallet so a different one can be used.

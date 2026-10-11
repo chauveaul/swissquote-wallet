@@ -10,6 +10,7 @@ import { Text } from '@/components/Text';
 import { isBiometricsAvailable } from '@/features/wallet/biometrics';
 import { useWallet } from '@/features/wallet/store';
 import { WrongPasswordError } from '@/features/wallet/vault';
+import { closeKeyboard } from '@/lib/keyboard';
 import { SignOutScreen } from '@/screens/SignOutScreen';
 import { colors } from '@/theme/tokens';
 
@@ -50,6 +51,8 @@ export default function Unlock() {
     setBusy(true);
     setError(null);
     try {
+      // Unlocking swaps this screen for the wallet: close the keyboard first.
+      await closeKeyboard();
       await unlockWithPassword(password);
       setPassword('');
     } catch (e) {

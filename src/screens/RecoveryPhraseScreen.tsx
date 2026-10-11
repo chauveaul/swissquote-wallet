@@ -10,12 +10,17 @@ import { Icon } from '@/components/Icon';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
-import { useWallet } from '@/features/wallet/store';
+import { useSelectedAccount, useWallet } from '@/features/wallet/store';
 import { usePreventScreenshots } from '@/features/wallet/usePreventScreenshots';
 import { BackupExportScreen } from '@/screens/BackupExportScreen';
 import { colors, fonts, radii } from '@/theme/tokens';
 
-type Props = { mode: 'create' | 'reveal' };
+/**
+ * - `create`: new wallet onboarding (the draft phrase; a password step follows);
+ * - `add`: new account in an existing wallet (the draft phrase; added on confirm);
+ * - `reveal`: the selected account's stored phrase.
+ */
+type Props = { mode: 'create' | 'add' | 'reveal' };
 
 const MASK = '••••••';
 
@@ -25,6 +30,11 @@ export function RecoveryPhraseScreen({ mode }: Props) {
 
   const draft = useWallet((s) => s.draftMnemonic);
   const revealMnemonic = useWallet((s) => s.revealMnemonic);
+  const addAccount = useWallet((s) => s.addAccount);
+  const account = useSelectedAccount();
+  const fromDraft = mode !== 'reveal';
+  const [adding, setAdding] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const [phrase, setPhrase] = useState<string | null>(null);
   const [needsReveal, setNeedsReveal] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -36,7 +46,7 @@ export function RecoveryPhraseScreen({ mode }: Props) {
   const revealed = phrase !== null;
 
   const reveal = async () => {
-    if (mode === 'create') {
+    if (fromDraft) {
       setPhrase(draft);
     } else {
       const ok = await confirmUserPresence('Reveal your secret recovery phrase');
@@ -47,15 +57,29 @@ export function RecoveryPhraseScreen({ mode }: Props) {
 
   /** The phrase for the backup file; in reveal mode this needs a fresh presence check. */
   const phraseForBackup = async () => {
-    if (mode === 'create') return draft;
+    if (fromDraft) return draft;
     if (phrase) return phrase;
     const ok = await confirmUserPresence('Back up your secret recovery phrase');
     return ok ? revealMnemonic() : null;
   };
 
-  const done = () => {
+  const done = async () => {
     if (!revealed && !backedUp) {
       setNeedsReveal(true);
+      return;
+    }
+    if (mode === 'add') {
+      setAdding(true);
+      setFailure(null);
+      try {
+        await addAccount();
+      } catch (e) {
+        setFailure(e instanceof Error ? e.message : 'Could not add the account.');
+        setAdding(false);
+        return;
+      }
+      setPhrase(null);
+      router.dismissTo('/');
       return;
     }
     setPhrase(null);
@@ -79,16 +103,22 @@ export function RecoveryPhraseScreen({ mode }: Props) {
 
   return (
     <Screen paddingTop={16} gap={24}>
-      {mode === 'create' ? <StepHeader step={2} total={3} /> : <NavHeader />}
+      {mode === 'create' ? <StepHeader step={2} total={3} /> : null}
+      {mode === 'add' ? <StepHeader step={2} total={2} /> : null}
+      {mode === 'reveal' ? <NavHeader /> : null}
 
       <View style={styles.intro}>
         {mode === 'create' ? <Overline>Step 2 of 3</Overline> : null}
+        {mode === 'add' ? <Overline>Add account · Step 2 of 2</Overline> : null}
+        {mode === 'reveal' ? <Overline>{account.name}</Overline> : null}
         <Text accessibilityRole="header" size={28} lineHeight={1.15} weight={700} tracking={-0.01}>
-          {mode === 'create' ? 'Write down your secret recovery phrase' : 'Your secret recovery phrase'}
+          {fromDraft ? 'Write down your secret recovery phrase' : 'Your secret recovery phrase'}
         </Text>
         <Text size={15} lineHeight={1.5} color={colors.textSecondary}>
-          These {words.length} words are the only way to restore your wallet. Write them down in order and
-          store them somewhere offline. Swissquote can never recover them for you.
+          {mode === 'create'
+            ? `These ${words.length} words are the only way to restore your wallet.`
+            : `These ${words.length} words are the only way to restore this account. Each account has its own phrase.`}{' '}
+          Write them down in order and store them somewhere offline. Swissquote can never recover them for you.
         </Text>
       </View>
 
@@ -161,7 +191,12 @@ export function RecoveryPhraseScreen({ mode }: Props) {
             Write down your phrase or download a backup file before continuing.
           </Text>
         ) : null}
-        <Button label={mode === 'create' ? 'I’ve written it down' : 'Done'} onPress={done} />
+        {failure ? (
+          <Text accessibilityRole="alert" size={13} weight={600} color={colors.accentText} align="center">
+            {failure}
+          </Text>
+        ) : null}
+        <Button label={fromDraft ? 'I’ve written it down' : 'Done'} onPress={done} loading={adding} />
       </View>
     </Screen>
   );

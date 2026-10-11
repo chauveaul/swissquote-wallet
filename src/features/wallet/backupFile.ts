@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -62,11 +63,19 @@ export async function shareBackupFile(name: string, contents: string): Promise<v
   }
 }
 
-/** Lets the user pick a backup file and returns its text, or null if cancelled. */
+/**
+ * Lets the user pick a backup file and returns its text, or null if cancelled.
+ *
+ * Android reads the picked document straight from its `content://` URI: the
+ * picker grants read access to it, whereas the cache copy can fail
+ * expo-file-system's path permission check ("Missing 'Read' permission").
+ * iOS needs the cache copy to read the file at all.
+ */
 export async function pickBackupFile(): Promise<{ name: string; contents: string } | null> {
+  const copied = Platform.OS !== 'android';
   const result = await DocumentPicker.getDocumentAsync({
     type: ['application/json', 'text/plain', 'application/octet-stream'],
-    copyToCacheDirectory: true,
+    copyToCacheDirectory: copied,
   });
   if (result.canceled) return null;
   const asset = result.assets[0]!;
@@ -74,6 +83,7 @@ export async function pickBackupFile(): Promise<{ name: string; contents: string
   try {
     return { name: asset.name, contents: await file.text() };
   } finally {
-    if (file.exists) file.delete();
+    // Only our own cache copy: on Android the URI is the user's original file.
+    if (copied && file.exists) file.delete();
   }
 }

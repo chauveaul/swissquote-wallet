@@ -59,6 +59,7 @@ const icons = {
     },
   ],
   lock: [{ rect: [4, 11, 16, 10, 2] }, { d: 'M8 11V7a4 4 0 018 0v4' }],
+  edit: [{ d: 'M4 20h4L18.5 9.5a2.12 2.12 0 00-3-3L5 17v3zM13.5 6.5l3 3' }],
 } satisfies Record<string, Shape[]>;
 
 export type IconName = keyof typeof icons;

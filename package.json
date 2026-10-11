@@ -51,6 +51,7 @@
     "eslint-config-expo": "~57.0.2",
     "jest": "~29.7.0",
     "jest-expo": "~57.0.5",
+    "patch-package": "^8.0.1",
     "react-test-renderer": "19.2.3",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3"
@@ -66,7 +67,8 @@
     "check:prices": "tsx scripts/check-prices.ts",
     "demo:eoa": "tsx --env-file=.env scripts/demo-eoa.ts",
     "demo:send": "tsx --env-file=.env scripts/demo-send.ts",
-    "swissquote:mock": "npm --prefix mock-swissquote run start"
+    "swissquote:mock": "npm --prefix mock-swissquote run start",
+    "postinstall": "patch-package"
   },
   "private": true,
   "jest": {

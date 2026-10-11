@@ -10,6 +10,7 @@ import { Screen, Spacer } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { backupFileName, createBackup, MIN_BACKUP_PASSWORD_LENGTH } from '@/features/wallet/backup';
 import { CAN_SHARE_BACKUP, saveBackupFile, shareBackupFile } from '@/features/wallet/backupFile';
+import { closeKeyboard } from '@/lib/keyboard';
 import { colors } from '@/theme/tokens';
 
 type Props = {
@@ -42,6 +43,7 @@ export function BackupExportScreen({ getPhrase, onCancel, onSaved }: Props) {
     if (tooShort || mismatch) return;
     setBusy(via);
     try {
+      await closeKeyboard();
       const phrase = await getPhrase();
       if (!phrase) return;
       const contents = await createBackup(phrase, password);

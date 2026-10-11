@@ -8,13 +8,15 @@ import {
 import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useFonts } from 'expo-font';
-import { router, Stack } from 'expo-router';
+import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { KeyboardProvider, KeyboardToolbar } from 'react-native-keyboard-controller';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { FocusedKeyboardToolbar } from '@/components/FocusedKeyboardToolbar';
 import { useWallet } from '@/features/wallet/store';
 import { useAutoLock } from '@/features/wallet/useAutoLock';
+import { closeKeyboard } from '@/lib/keyboard';
 import { persistOptions, queryClient } from '@/lib/queryClient';
 import { colors } from '@/theme/tokens';
 
@@ -55,6 +57,14 @@ export default function RootLayout() {
     seenGeneration.current = walletGeneration;
     router.replace('/');
   }, [walletGeneration]);
+
+  // Fallback for every other screen change (e.g. Send → Review): the outgoing
+  // screen is still mounted while it animates away, so closing the keyboard now
+  // hides it cleanly instead of leaving the toolbar stuck on Android.
+  const pathname = usePathname();
+  useEffect(() => {
+    closeKeyboard().catch(() => undefined);
+  }, [pathname]);
 
   const ready = (fontsLoaded || fontError) && status !== 'loading';
 
@@ -97,7 +107,7 @@ export default function RootLayout() {
           </Stack>
           {/* Previous / next / Done above every keyboard, so number pads (which
               have no return key) can always be closed. */}
-          <KeyboardToolbar theme={KEYBOARD_TOOLBAR_THEME} doneText="Done" />
+          <FocusedKeyboardToolbar theme={KEYBOARD_TOOLBAR_THEME} doneText="Done" />
         </PersistQueryClientProvider>
       </KeyboardProvider>
     </SafeAreaProvider>

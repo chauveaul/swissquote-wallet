@@ -10,6 +10,7 @@ import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
 import { isBiometricsAvailable } from '@/features/wallet/biometrics';
 import { useWallet } from '@/features/wallet/store';
+import { closeKeyboard } from '@/lib/keyboard';
 import { colors } from '@/theme/tokens';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -50,6 +51,7 @@ export default function SetPassword() {
     setBusy(true);
     setFailure(null);
     try {
+      await closeKeyboard();
       await createWallet(password, hasBiometrics && useBiometrics);
       // The root layout's route guards take over once the wallet is unlocked.
     } catch {
