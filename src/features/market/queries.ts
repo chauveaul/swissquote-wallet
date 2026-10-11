@@ -1,4 +1,4 @@
-import { formatEther, type Address, type Hash } from 'viem';
+import { formatEther, type Hash } from 'viem';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { create } from 'zustand';
@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { showToast } from '@/components/Toast';
 import { useNetworkId, useSelectedAccount, useWallet, type AccountMeta } from '@/features/wallet/store';
 import { DEMO_MODE, MARKET_DATA } from '@/lib/config';
-import { ERC20, ERC20_DECIMALS } from '@/lib/erc20';
+import { erc20AssetFor, ERC20, ERC20_DECIMALS } from '@/lib/erc20';
 import { formatNumber, MONTHS } from '@/lib/format';
 import { getNetwork, networks, type NetworkId } from '@/lib/networks';
 import { fetchTokenTransfers, fetchTransactions, type ChainTokenTransfer, type ChainTx } from '@/services/blockscout/historyApi';
@@ -387,16 +387,6 @@ export function chainTxToActivity(tx: ChainTx, account: AccountMeta, networkId: 
  */
 export function isIncomingSpam(tx: ChainTx, account: AccountMeta): boolean {
   return tx.value === 0n && tx.from.toLowerCase() !== account.address.toLowerCase();
-}
-
-/** Which of our supported ERC-20s a Blockscout token-transfer's token address is, if any. */
-export function erc20AssetFor(networkId: NetworkId, tokenAddress: Address): 'USDC' | 'LINK' | null {
-  const tokens = ERC20[networkId];
-  if (!tokens) return null;
-  const lower = tokenAddress.toLowerCase();
-  if (tokens.USDC?.toLowerCase() === lower) return 'USDC';
-  if (tokens.LINK?.toLowerCase() === lower) return 'LINK';
-  return null;
 }
 
 /**

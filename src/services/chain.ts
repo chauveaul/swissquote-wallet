@@ -10,6 +10,7 @@ import {
   type Address,
   type Hash,
   type HDAccount,
+  type Hex,
 } from 'viem';
 
 import type { FeeSpeed, TransferAsset } from '@/features/market/types';
@@ -78,6 +79,27 @@ export async function estimateTransferFee(networkId: NetworkId, asset: TransferA
   const fees = await estimateFees(networkId, speed);
   const feeWei = fees.maxFeePerGas * GAS_LIMIT[asset];
   return { feeWei, feeEth: Number(formatEther(feeWei)) };
+}
+
+type SendRawParams = {
+  signer: HDAccount;
+  networkId: NetworkId;
+  to: Address | null;
+  value: bigint;
+  data?: Hex;
+};
+
+/**
+ * Signs and broadcasts an arbitrary transaction exactly as a dApp requested
+ * it (own `to`/`value`/`data`), unlike {@link sendAsset} which only ever
+ * builds a plain transfer. The caller (the dApp browser) is responsible for
+ * simulating and approving the request before this is ever called.
+ */
+export async function sendRawTransaction({ signer, networkId, to, value, data }: SendRawParams): Promise<Hash> {
+  const chain = getNetwork(networkId).chain;
+  const client = createWalletClient({ account: signer, chain, transport: http(rpcUrl(networkId)) });
+  const fees = await estimateFees(networkId, 'market');
+  return client.sendTransaction({ to: to ?? undefined, value, data, ...fees });
 }
 
 /** Sends native ETH or one of the supported ERC-20s, whichever `asset` names. */

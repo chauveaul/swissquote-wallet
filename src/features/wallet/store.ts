@@ -145,6 +145,8 @@ type WalletState = {
   /** Adds a contact, or replaces the one at `previousAddress`. */
   saveContact: (contact: Contact, previousAddress?: Address) => Promise<void>;
   deleteContact: (address: Address) => Promise<void>;
+  /** Records a dApp connection approved in the in-app browser, replacing any earlier session for the same site. */
+  connectSite: (site: ConnectedSite) => Promise<void>;
   disconnectSite: (id: string) => Promise<void>;
   disconnectAllSites: () => Promise<void>;
   linkSwissquote: (link: SwissquoteLink) => Promise<void>;
@@ -426,6 +428,11 @@ export const useWallet = create<WalletState>((set, get) => {
       updateMeta({
         contacts: (get().meta?.contacts ?? []).filter((c) => c.address.toLowerCase() !== address.toLowerCase()),
       }),
+
+    connectSite: (site) => {
+      const existing = (get().meta?.connectedSites ?? []).filter((s) => s.host !== site.host);
+      return updateMeta({ connectedSites: [...existing, site] });
+    },
 
     disconnectSite: (id) =>
       updateMeta({ connectedSites: (get().meta?.connectedSites ?? []).filter((site) => site.id !== id) }),

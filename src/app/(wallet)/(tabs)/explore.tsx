@@ -104,6 +104,24 @@ export default function Explore() {
         </View>
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Browse approved dApps"
+        onPress={() => router.push('/dapps')}
+        style={({ pressed }) => [styles.dappsRow, pressed && { backgroundColor: colors.surfaceMuted }]}
+      >
+        <Icon name="link" size={18} color={colors.ink} />
+        <View style={styles.flex}>
+          <Text size={15} weight={600}>
+            Browse approved dApps
+          </Text>
+          <Text size={12} color={colors.textMuted}>
+            Sanctions-screened, simulated before you sign
+          </Text>
+        </View>
+        <Icon name="chevronRight" size={18} color={colors.iconMuted} />
+      </Pressable>
+
       {/* Shrinks the list above the keyboard so every result stays reachable. */}
       <KeyboardAvoidingView behavior="padding" automaticOffset style={styles.flex}>
         <FlatList
@@ -136,6 +154,14 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { paddingTop: 24, paddingHorizontal: 24, paddingBottom: 8 },
   searchWrap: { paddingHorizontal: 24, paddingTop: 8 },
+  dappsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
   search: {
     height: 44,
     flexDirection: 'row',
