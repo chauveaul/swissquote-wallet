@@ -112,12 +112,20 @@ funded account there would move real funds.
 ### Swissquote account linking (`mock-swissquote/`)
 
 "One step away from their Swissquote account": Settings → "Link your Swissquote account" links
-this wallet to a **mock** Swissquote server (a separate process — fake customers, fake PINs, fake
-CHF ledger; see `mock-swissquote/README.md` for exactly what's mocked vs real). What's real: the
-wallet signs a message proving it controls its address, the mock server verifies that signature
-before recording the link — the actual ownership check the Travel Rule requires — and both
-transfer directions are genuine signed transactions on whichever testnet you're using, not a
-simulation.
+this wallet to a **mock** Swissquote server (a separate process with fake customers and PINs; see
+`mock-swissquote/README.md` for exactly what's mocked vs real). The compliance controls themselves
+are real, and `COMPLIANCE.md` maps each one to the Swiss rule it addresses:
+
+- **Ownership proof:** the customer signs in with their PIN, the server issues a single-use,
+  5-minute Sign-In with Ethereum (EIP-4361) challenge naming the customer, address and chain, and
+  the wallet signs exactly that. Replayed, self-written or other-key signatures are rejected.
+- **Sole control:** on every link, deposit and withdrawal, the server checks on that network that
+  the address is a plain key-controlled account, or delegated (EIP-7702) only to an approved
+  contract.
+- **Sanctions screening:** Chainalysis' on-chain OFAC oracle plus the bank's own list, fail-closed.
+- **Custody:** the bank holds ETH per customer and never converts it; CHF is only a valuation.
+- **Transfers:** withdrawals only ever go to the verified address. Deposits are re-read on-chain,
+  attributed by sender, and held for review (not credited) if any check fails.
 
 Accepted currencies are ETH, USDC and LINK — not WBTC, a third-party-custodied wrapped claim on
 BTC rather than BTC itself, which a regulated custodian can't accept without separate due
@@ -130,9 +138,9 @@ npm run swissquote:mock   # separate terminal, needs its own mock-swissquote/.en
 
 Then in the app: Settings → Link your Swissquote account → pick a demo customer (PIN `0000`) →
 sign. "Move ETH to Swissquote" reuses Send/Review as normal, addressed to the custodial account.
-"Move ETH to wallet" calls the mock server directly, which only ever withdraws to the address it
-already verified — the Travel Rule check, made automatic, demonstrated by rejecting any other
-destination.
+"Move ETH to wallet" asks the server to withdraw, which only ever sends to the address it already
+verified. The bank session lasts 15 minutes; after that, or an app restart, the account screen asks
+for the PIN again.
 
 ## Security model
 

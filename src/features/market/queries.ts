@@ -319,7 +319,12 @@ export function useActivityConfirmations() {
           // stay pending and retry next tick rather than losing the credit
           // silently (it already landed on-chain regardless).
           try {
-            await confirmSwissquoteDeposit(item.swissquoteCustomerId, item.networkId, item.hash as Hash);
+            const result = await confirmSwissquoteDeposit(item.networkId, item.hash as Hash);
+            if (result.status === 'held') {
+              // On-chain it succeeded, but Swissquote didn't credit it.
+              update(item.id, { status: 'confirmed', eta: undefined, title: 'Deposit held for review', failureReason: result.reason });
+              continue;
+            }
           } catch (e) {
             console.warn('[swissquote] deposit not confirmed with the mock server yet, will retry:', e);
             continue;

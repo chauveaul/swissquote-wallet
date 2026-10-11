@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/Button';
 import { Callout } from '@/components/Callout';
 import { NavHeader } from '@/components/Header';
+import { PasswordField } from '@/components/PasswordField';
 import { Screen, Spacer } from '@/components/Screen';
 import { SettingsGroup, SettingsRow } from '@/components/SettingsList';
 import { Overline, Text } from '@/components/Text';
@@ -15,13 +16,22 @@ import { useFiat } from '@/features/settings/useFiat';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
 import { useNetworkId, useSelectedAccount, useSwissquote, useWallet } from '@/features/wallet/store';
 import { formatNumber, truncateAddress } from '@/lib/format';
-import { getSwissquoteCustomer, unlinkSwissquoteAccount, withdrawFromSwissquote } from '@/services/swissquoteMock';
+import {
+  endSwissquoteSession,
+  getSwissquoteCustomer,
+  hasSwissquoteSession,
+  loginSwissquote,
+  unlinkSwissquoteAccount,
+  withdrawFromSwissquote,
+} from '@/services/swissquoteMock';
 import { colors, radii } from '@/theme/tokens';
 
 /**
- * Not drawn in the design. The linked mock Swissquote account's CHF balance,
- * with real transfers in both directions on the real chain — see
- * `mock-swissquote/README.md` for what's mocked vs real.
+ * Not drawn in the design. The ETH the mock Swissquote server holds in
+ * custody for the linked customer (valued in the display currency), with
+ * real transfers in both directions on the real chain — see
+ * `mock-swissquote/README.md` for what's mocked vs real. Everything here
+ * needs a bank session (PIN); unlinking asks for the PIN again.
  */
 export default function SwissquoteAccount() {
   const fiat = useFiat();
@@ -36,15 +46,36 @@ export default function SwissquoteAccount() {
   const [busy, setBusy] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pin, setPin] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
+  const [unlinkPin, setUnlinkPin] = useState('');
+  // Bumped after sign-in so the (module-level) session is re-read.
+  const [, setSessionVersion] = useState(0);
+  const signedIn = !!swissquote && hasSwissquoteSession(swissquote.customerId);
 
   const { data: customer, isRefetching, refetch } = useQuery({
     queryKey: ['swissquote', 'customer', swissquote?.customerId],
-    queryFn: () => getSwissquoteCustomer(swissquote!.customerId),
-    enabled: !!swissquote,
+    queryFn: getSwissquoteCustomer,
+    enabled: signedIn,
     refetchInterval: 15_000,
+    retry: false,
   });
 
   if (!swissquote) return <Redirect href="/link-swissquote" />;
+
+  const signIn = async () => {
+    setError(null);
+    setSigningIn(true);
+    try {
+      await loginSwissquote(swissquote.accountNumber, pin);
+      setPin('');
+      setSessionVersion((v) => v + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message.split('\n')[0]! : 'Could not sign in.');
+    } finally {
+      setSigningIn(false);
+    }
+  };
 
   const moveToSwissquote = () => {
     setTo(swissquote.custodialAddress);
@@ -62,13 +93,14 @@ export default function SwissquoteAccount() {
     if (!approved) return;
     setBusy(true);
     try {
-      await withdrawFromSwissquote(swissquote.customerId, networkId, 'ETH', amount);
+      await withdrawFromSwissquote(networkId, 'ETH', amount);
       setWithdrawAmount('');
       await Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ['portfolio'] })]);
     } catch (e) {
       setError(e instanceof Error ? e.message.split('\n')[0]! : 'Withdrawal failed.');
     } finally {
       setBusy(false);
+      setSessionVersion((v) => v + 1);
     }
   };
 
@@ -76,13 +108,16 @@ export default function SwissquoteAccount() {
     setError(null);
     setUnlinking(true);
     try {
-      // Best-effort: tell the server first so the customer is actually free
-      // to re-link (otherwise it still thinks this address owns them, and
-      // picking them again on /link-swissquote fails with "already linked").
-      await unlinkSwissquoteAccount(swissquote.customerId);
+      // The server's binding is what matters (it decides where withdrawals
+      // go), so only forget the link locally once the server has released it.
+      await unlinkSwissquoteAccount(unlinkPin);
     } catch (e) {
-      console.warn('[swissquote] server-side unlink failed, unlinking locally anyway:', e);
+      setError(e instanceof Error ? e.message.split('\n')[0]! : 'Could not unlink.');
+      setUnlinking(false);
+      setSessionVersion((v) => v + 1);
+      return;
     }
+    endSwissquoteSession();
     await unlinkSwissquote();
     router.dismissTo('/settings');
   };
@@ -94,14 +129,30 @@ export default function SwissquoteAccount() {
       </View>
 
       <Callout tone="info">
-        Demo only: {swissquote.name}’s CHF balance below lives in a mock server, not a real bank.
-        The transfers themselves are real signed transactions on {account.name}’s selected network.
+        Demo only: {swissquote.name}’s account lives in a mock server, not a real bank. The
+        transfers themselves are real signed transactions on {account.name}’s selected network.
       </Callout>
 
+      {!signedIn ? (
+        <View style={styles.withdrawCard}>
+          <PasswordField
+            label={`PIN for account ${swissquote.accountNumber}`}
+            value={pin}
+            onChangeText={setPin}
+            keyboardType="number-pad"
+            placeholder="0000"
+          />
+          <Button label="Sign in to Swissquote" onPress={signIn} loading={signingIn} disabled={pin.length === 0} />
+        </View>
+      ) : null}
+
       <View style={styles.balanceCard}>
-        <Overline color={colors.onDarkMuted}>Swissquote balance</Overline>
+        <Overline color={colors.onDarkMuted}>Held in custody at Swissquote</Overline>
         <Text size={36} weight={700} color={colors.surface} tracking={-0.02}>
-          {customer ? fiat.format(customer.chfBalance) : '···'}
+          {signedIn && customer ? `${formatNumber(Number(customer.ethBalance), 4)} ETH` : '···'}
+        </Text>
+        <Text size={15} color={colors.onDarkMuted}>
+          {signedIn && customer ? `≈ ${fiat.format(customer.chfBalance)}` : 'Sign in to see your balance'}
         </Text>
         <Text size={13} color={colors.onDarkMuted}>
           Account {swissquote.accountNumber} · linked {new Date(swissquote.linkedAt).toLocaleDateString()}
@@ -137,11 +188,17 @@ export default function SwissquoteAccount() {
             inputMode="decimal"
             style={styles.withdrawInput}
           />
-          <Button label="Withdraw" onPress={moveToWallet} loading={busy} style={styles.withdrawButton} />
+          <Button
+            label="Withdraw"
+            onPress={moveToWallet}
+            loading={busy}
+            disabled={!signedIn}
+            style={styles.withdrawButton}
+          />
         </View>
         <Text size={13} color={colors.textMuted}>
           Always lands on {truncateAddress(account.address)} — the address Swissquote already
-          verified for this account. That’s the Travel Rule check, made automatic.
+          verified for this account. Each withdrawal is screened against sanctions lists first.
         </Text>
       </View>
 
@@ -157,7 +214,22 @@ export default function SwissquoteAccount() {
           Refreshing…
         </Text>
       ) : null}
-      <Button label="Unlink this device" variant="secondary" onPress={unlink} loading={unlinking} />
+      {signedIn ? (
+        <PasswordField
+          label="PIN to unlink this wallet"
+          value={unlinkPin}
+          onChangeText={setUnlinkPin}
+          keyboardType="number-pad"
+          placeholder="0000"
+        />
+      ) : null}
+      <Button
+        label="Unlink this wallet"
+        variant="secondary"
+        onPress={unlink}
+        loading={unlinking}
+        disabled={!signedIn || unlinkPin.length === 0}
+      />
     </Screen>
   );
 }

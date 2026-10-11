@@ -36,7 +36,11 @@ async function proxy(req, res, upstreamUrl) {
     for await (const chunk of req) chunks.push(chunk);
     const upstream = await fetch(upstreamUrl, {
       method: req.method,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+      },
       body: req.method === 'GET' || req.method === 'HEAD' ? undefined : Buffer.concat(chunks),
       signal: AbortSignal.timeout(10_000),
     });

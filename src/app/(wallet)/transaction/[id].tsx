@@ -183,7 +183,7 @@ export default function TransactionDetails() {
         </Text>
       </View>
 
-      {item.status === 'failed' && item.failureReason ? <Callout size={13}>{item.failureReason}</Callout> : null}
+      {item.failureReason ? <Callout size={13}>{item.failureReason}</Callout> : null}
 
       <View style={styles.card}>
         {rows.map((r, i) => (

@@ -11,13 +11,14 @@ import { Screen, Spacer } from '@/components/Screen';
 import { SettingsGroup, SettingsRow } from '@/components/SettingsList';
 import { Text } from '@/components/Text';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
-import { useSelectedAccount, useWallet } from '@/features/wallet/store';
+import { useNetworkId, useSelectedAccount, useWallet } from '@/features/wallet/store';
 import {
   getCustodialAddress,
   linkSwissquoteAccount,
   listDemoCustomers,
   loginSwissquote,
-  type SwissquoteCustomer,
+  requestLinkChallenge,
+  type DemoCustomer,
 } from '@/services/swissquoteMock';
 import { colors } from '@/theme/tokens';
 
@@ -27,15 +28,19 @@ import { colors } from '@/theme/tokens';
  * swissquote:mock`), not a real bank backend. The PIN below is a fixed demo
  * value; a real integration would never work this way.
  *
- * What's real: the account picked here signs a message proving it controls
- * this address, and the mock server verifies that signature before
- * recording the link — the actual ownership check the Travel Rule requires.
+ * What's real: the customer signs in (PIN, server session), the server
+ * issues a single-use EIP-4361 challenge naming the customer, address and
+ * network, this account signs exactly that, and the server verifies it, checks
+ * the address is still solely key-controlled and screens it against sanctions
+ * lists before recording the link — the ownership proof FINMA requires for
+ * transfers to and from a customer's own wallet.
  */
 export default function LinkSwissquote() {
   const account = useSelectedAccount();
+  const networkId = useNetworkId();
   const getSigner = useWallet((s) => s.getSigner);
   const linkSwissquote = useWallet((s) => s.linkSwissquote);
-  const [picked, setPicked] = useState<SwissquoteCustomer | null>(null);
+  const [picked, setPicked] = useState<DemoCustomer | null>(null);
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +56,7 @@ export default function LinkSwissquote() {
     setError(null);
     setBusy(true);
     try {
-      const customer = await loginSwissquote(picked.accountNumber, pin);
+      await loginSwissquote(picked.accountNumber, pin);
 
       const approved = await confirmUserPresence('Link Swissquote account');
       if (!approved) {
@@ -59,11 +64,12 @@ export default function LinkSwissquote() {
         return;
       }
 
-      const signer = getSigner(account.index);
-      const message = `Link wallet ${account.address} to Swissquote account ${customer.id} (${customer.accountNumber}) at ${new Date().toISOString()}`;
-      const signature = await signer.signMessage({ message });
+      // The server writes the message; signing our own text would let any old
+      // signature from this address be replayed as a proof.
+      const { message } = await requestLinkChallenge(account.address, networkId);
+      const signature = await getSigner(account.index).signMessage({ message });
 
-      const linked = await linkSwissquoteAccount(customer.id, account.address, message, signature);
+      const linked = await linkSwissquoteAccount(signature);
       if (!linked.linkedAddress) throw new Error('Linking failed.');
       // `linked.linkedAddress` is an echo of *this wallet's own* address (what
       // got linked) — not Swissquote's deposit address. Fetch that separately.
@@ -105,9 +111,9 @@ export default function LinkSwissquote() {
               key={c.id}
               role="radio"
               label={c.name}
-              detail={`Account ${c.accountNumber}${c.linkedAddress ? ' · already linked to a wallet' : ''}`}
+              detail={`Account ${c.accountNumber}${c.linked ? ' · already linked to a wallet' : ''}`}
               selected={picked?.id === c.id}
-              onPress={() => (c.linkedAddress ? undefined : setPicked(c))}
+              onPress={() => (c.linked ? undefined : setPicked(c))}
               last={i === customers.length - 1}
             />
           ))
@@ -122,6 +128,14 @@ export default function LinkSwissquote() {
           keyboardType="number-pad"
           placeholder="0000"
         />
+      ) : null}
+
+      {picked ? (
+        <Text size={13} color={colors.textSecondary}>
+          Next, {account.name} signs a one-time Sign-In with Ethereum message confirming you alone control{' '}
+          this wallet. Swissquote checks it, screens the address against sanctions lists, and from then on
+          only ever withdraws to this address.
+        </Text>
       ) : null}
 
       {error ? (

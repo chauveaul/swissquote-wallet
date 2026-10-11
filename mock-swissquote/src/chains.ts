@@ -57,3 +57,11 @@ export function walletClientFor(id: NetworkId, account: LocalAccount) {
   const { chain, rpc } = entry(id);
   return createWalletClient({ account, chain, transport: http(rpc) });
 }
+
+export function isNetworkId(id: unknown): id is NetworkId {
+  return typeof id === 'string' && id in CHAINS;
+}
+
+export function chainIdFor(id: NetworkId): number {
+  return entry(id).chain.id;
+}
