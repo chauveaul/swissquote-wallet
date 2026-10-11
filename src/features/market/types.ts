@@ -57,6 +57,9 @@ export type ActivityItem = {
   timestamp: number;
   /** On-chain transaction hash; absent for demo or not-yet-broadcast items. */
   hash?: string;
+  /** ERC-4337 user operation hash of a gasless send; `hash` is filled in once
+   * the bundler gets it mined. */
+  userOpHash?: string;
   /** Index of the wallet account that made or received it. */
   accountIndex: number;
   networkId: NetworkId;

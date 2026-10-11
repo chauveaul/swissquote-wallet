@@ -36,6 +36,7 @@ Expo Go is not supported: biometric-protected Keychain items need `NSFaceIDUsage
 | --- | --- | --- |
 | `EXPO_PUBLIC_DEMO_MODE` | `false` | `true` = serve the design's balances/prices/activity and simulate broadcasting. Key management is always real. |
 | `EXPO_PUBLIC_RPC_URL_{ETH,ARB,OP,BASE,POL,SEPOLIA,ARB_SEPOLIA,OP_SEPOLIA,BASE_SEPOLIA,POL_AMOY}` | chain's public RPC | RPC endpoints for fee estimation and broadcasting. |
+| `EXPO_PUBLIC_BUNDLER_URL`, `EXPO_PUBLIC_PAYMASTER_URL`, `EXPO_PUBLIC_SPONSORSHIP_POLICY_ID` | unset (gasless off) | Gasless sends — see "Gasless transactions" below. `{chainId}` in the URL is substituted per network. |
 | `EXPO_PUBLIC_MARKET_DATA` | `swissquote` | `swissquote` = Swissquote's own real-time quotes for all 55 listed cryptos, daily history and FX; `kraken` = Kraken public data (intraday history, wallet tokens only); `demo` = the design's fixed sample prices. Independent of `EXPO_PUBLIC_DEMO_MODE`. |
 | `EXPO_PUBLIC_SWISSQUOTE_API_URL` | `https://www.swissquote.ch` (web dev: `/sq-api` proxy) | Base URL of the price service (e.g. a Swissquote mobile gateway). |
 | `RPC_URL`, `DEMO_PRIVATE_KEY`, `BUNDLER_URL`, `USDC_ADDRESS` | public Sepolia RPC / unset | Used only by the `demo:*` CLI scripts below, never bundled into the app (not `EXPO_PUBLIC_`). |
@@ -66,6 +67,31 @@ included) at once, so funding more than one testnet is a good way to see that ag
    broadcasts; the activity entry carries a real hash — check it on that chain's explorer
    (e.g. `sepolia.etherscan.io`, `sepolia.arbiscan.io`, `sepolia-optimism.etherscan.io`,
    `sepolia.basescan.org`, `amoy.polygonscan.com`).
+
+### Gasless transactions
+
+Same model as MetaMask's post-Pectra gasless sends: the user's existing address is upgraded in
+place with an **EIP-7702** delegation to eth-infinitism's audited `Simple7702Account` (EntryPoint
+v0.8, built into viem), and the transfer goes out as an **ERC-4337** user operation whose gas a
+**paymaster** pays. Same address, same recovery phrase, no ETH needed for gas
+(`src/services/gasless.ts`).
+
+- Send/Review ask the paymaster up front (a dry run, nothing signed). If it would sponsor, Review
+  shows "Free · Sponsored" and Max sends the whole balance. Otherwise, or if the user taps
+  "Pay in ETH", the regular EIP-1559 path is used unchanged.
+- The first gasless send also signs the 7702 authorization; later sends don't need it.
+- If sponsorship fails at confirmation, Review switches to paying in ETH and asks to confirm again.
+  A send is never blocked by the paymaster.
+- An address already delegated elsewhere (e.g. upgraded by MetaMask) is never re-delegated
+  silently. It just pays gas in ETH.
+- Activity tracks the user-operation hash and fills in the transaction hash once the bundler gets
+  it mined.
+- Swissquote deposits always pay their own gas: the custodian (and `mock-swissquote`) verifies
+  deposits from the top-level transaction's `from`/`to`/`value`, which a bundled user operation
+  doesn't carry.
+
+To try it on a testnet, put a Pimlico (or any ERC-7769 bundler + ERC-7677 paymaster) URL in
+`EXPO_PUBLIC_BUNDLER_URL`. Pimlico sponsors testnet operations for free.
 
 ### Sepolia CLI sandbox (`src/services/walletCore`)
 

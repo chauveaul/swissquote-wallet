@@ -9,6 +9,7 @@ import { formatNumber } from '@/lib/format';
 import { getNetwork, networks, type NetworkId } from '@/lib/networks';
 import { fetchTransactions, type ChainTx } from '@/services/blockscout/historyApi';
 import { estimateFees, getNativeBalance, publicClient } from '@/services/chain';
+import { getGaslessReceipt } from '@/services/gasless';
 import { confirmSwissquoteDeposit } from '@/services/swissquoteMock';
 import { colors } from '@/theme/tokens';
 
@@ -286,13 +287,22 @@ export function useActivityConfirmations() {
 
   useEffect(() => {
     if (DEMO_MODE) return;
-    const pending = items.filter((i) => i.status === 'pending' && i.hash);
+    const pending = items.filter((i) => i.status === 'pending' && (i.hash || i.userOpHash));
     if (pending.length === 0) return;
 
     let active = true;
     const tick = async () => {
       for (const item of pending) {
         if (!active) return;
+        if (!item.hash && item.userOpHash) {
+          // Gasless send: ask the bundler which transaction carried it.
+          const op = await getGaslessReceipt(item.networkId, item.userOpHash as Hash);
+          if (!op) continue;
+          update(item.id, op.success
+            ? { hash: op.transactionHash }
+            : { hash: op.transactionHash, status: 'failed', eta: undefined, failureReason: 'The transfer reverted on-chain.' });
+          continue; // The update re-runs this effect, which then confirms it like any other send.
+        }
         let receipt;
         try {
           receipt = await publicClient(item.networkId).getTransactionReceipt({ hash: item.hash as Hash });

@@ -14,6 +14,7 @@ import { useFiat } from '@/features/settings/useFiat';
 import type { Contact } from '@/features/market/types';
 import type { AccountMeta } from '@/features/wallet/store';
 import { parseRecipient, useSendDraft } from '@/features/send/draft';
+import { useSponsorship } from '@/features/send/gasless';
 import { identifyRecipient } from '@/features/send/recipient';
 import { accountColor } from '@/features/wallet/accountColor';
 import { useNetworkId, useSelectedAccount, useSwissquote, useWallet } from '@/features/wallet/store';
@@ -42,7 +43,9 @@ export default function Send() {
   const value = Number(amount) || 0;
   const ethChf = useSpotPrice('ETH');
   const { data: feeEstimate } = useFeeEstimate(networkId, speed, ethChf);
-  const fee = feeEstimate?.eth ?? 0;
+  // Sponsored sends cost the user no gas, so the whole balance can be sent.
+  const { sponsorship } = useSponsorship(networkId, account.index, account.address, known?.kind !== 'swissquote');
+  const fee = sponsorship?.sponsored ? 0 : (feeEstimate?.eth ?? 0);
 
   const amountError =
     value <= 0 ? 'Enter an amount.' : value + fee > balance ? 'Insufficient balance to cover amount and network fee.' : null;
