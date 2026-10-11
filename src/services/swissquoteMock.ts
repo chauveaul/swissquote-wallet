@@ -33,7 +33,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
       signal: AbortSignal.timeout(10_000),
     });
   } catch {
-    throw new SwissquoteMockError('Mock Swissquote server unreachable — is `npm run swissquote:mock` running?');
+    throw new SwissquoteMockError('Could not reach Swissquote. Check your connection and try again.');
   }
   const body = await res.json().catch(() => null);
   if (!res.ok) {

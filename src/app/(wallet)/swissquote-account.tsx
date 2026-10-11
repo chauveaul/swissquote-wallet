@@ -153,8 +153,9 @@ export default function SwissquoteAccount() {
       </View>
 
       <Callout tone="info">
-        Demo only: {swissquote.name}’s CHF balance below lives in a mock server, not a real bank.
-        The transfers themselves are real signed transactions on {account.name}’s selected network.
+        You’re in demo mode: {swissquote.name}’s Swissquote balance shown below is a sample account, not a
+        connected bank account. Transfers you make are still real, signed transactions on {account.name}’s
+        selected network.
       </Callout>
 
       <View style={styles.balanceCard}>
@@ -203,8 +204,8 @@ export default function SwissquoteAccount() {
         </Text>
         <Text size={13} color={colors.textMuted}>
           {direction === 'toSwissquote'
-            ? `Sent to Swissquote's custodial address — only a verified wallet can land here.`
-            : `Always lands on ${truncateAddress(account.address)} — the address Swissquote already verified for this account. That's the Travel Rule check, made automatic.`}
+            ? `Sent to your Swissquote account's deposit address.`
+            : `Always sent to ${truncateAddress(account.address)}, the wallet address already verified for this account.`}
         </Text>
       </View>
 

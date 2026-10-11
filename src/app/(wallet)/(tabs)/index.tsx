@@ -16,7 +16,6 @@ import { colors, radii } from '@/theme/tokens';
 
 const ACTIONS: { label: string; icon: IconName; href?: Href; primary?: boolean }[] = [
   { label: 'Buy', icon: 'plus', href: '/buy' },
-  { label: 'Swap', icon: 'swap', href: '/swap' },
   { label: 'Send', icon: 'send', href: '/send', primary: true },
   { label: 'Receive', icon: 'receive', href: '/receive' },
 ];

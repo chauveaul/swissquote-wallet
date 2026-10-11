@@ -7,11 +7,12 @@ import { Button } from '@/components/Button';
 import { Callout } from '@/components/Callout';
 import { NavHeader, StepHeader } from '@/components/Header';
 import { Icon } from '@/components/Icon';
+import { PasswordField } from '@/components/PasswordField';
 import { Screen, Spacer } from '@/components/Screen';
 import { Overline, Text } from '@/components/Text';
-import { confirmUserPresence } from '@/features/wallet/biometrics';
 import { useSelectedAccount, useWallet } from '@/features/wallet/store';
 import { usePreventScreenshots } from '@/features/wallet/usePreventScreenshots';
+import { WrongPasswordError } from '@/features/wallet/vault';
 import { BackupExportScreen } from '@/screens/BackupExportScreen';
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -30,6 +31,7 @@ export function RecoveryPhraseScreen({ mode }: Props) {
 
   const draft = useWallet((s) => s.draftMnemonic);
   const revealMnemonic = useWallet((s) => s.revealMnemonic);
+  const verifyPassword = useWallet((s) => s.verifyPassword);
   const addAccount = useWallet((s) => s.addAccount);
   const account = useSelectedAccount();
   const fromDraft = mode !== 'reveal';
@@ -41,6 +43,46 @@ export function RecoveryPhraseScreen({ mode }: Props) {
   const [backedUp, setBackedUp] = useState(false);
   const blurTarget = useRef<View | null>(null);
 
+  // Gates reveal/backup in `reveal` mode behind the wallet's own password,
+  // not just the device lock screen — the one secret that actually moves funds.
+  const [passwordGate, setPasswordGate] = useState<'reveal' | 'backup' | null>(null);
+  const [gatePassword, setGatePassword] = useState('');
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [gateBusy, setGateBusy] = useState(false);
+  const gateResolve = useRef<((ok: boolean) => void) | null>(null);
+
+  const confirmWithPassword = (purpose: 'reveal' | 'backup'): Promise<boolean> =>
+    new Promise((resolve) => {
+      gateResolve.current = resolve;
+      setGatePassword('');
+      setGateError(null);
+      setPasswordGate(purpose);
+    });
+
+  const cancelGate = () => {
+    gateResolve.current?.(false);
+    gateResolve.current = null;
+    setPasswordGate(null);
+  };
+
+  const submitGate = async () => {
+    if (!gatePassword) {
+      setGateError('Enter your password to continue.');
+      return;
+    }
+    setGateBusy(true);
+    try {
+      await verifyPassword(gatePassword);
+      setPasswordGate(null);
+      gateResolve.current?.(true);
+      gateResolve.current = null;
+    } catch (e) {
+      setGateError(e instanceof WrongPasswordError ? 'Incorrect password. Try again.' : 'Could not verify your password.');
+    } finally {
+      setGateBusy(false);
+    }
+  };
+
   // The real words never enter the view tree until the user asks to see them.
   const words = useMemo(() => (phrase ? phrase.split(' ') : Array<string>(12).fill(MASK)), [phrase]);
   const revealed = phrase !== null;
@@ -49,17 +91,17 @@ export function RecoveryPhraseScreen({ mode }: Props) {
     if (fromDraft) {
       setPhrase(draft);
     } else {
-      const ok = await confirmUserPresence('Reveal your secret recovery phrase');
+      const ok = await confirmWithPassword('reveal');
       if (ok) setPhrase(revealMnemonic());
     }
     setNeedsReveal(false);
   };
 
-  /** The phrase for the backup file; in reveal mode this needs a fresh presence check. */
+  /** The phrase for the backup file; in reveal mode this needs a fresh password check. */
   const phraseForBackup = async () => {
     if (fromDraft) return draft;
     if (phrase) return phrase;
-    const ok = await confirmUserPresence('Back up your secret recovery phrase');
+    const ok = await confirmWithPassword('backup');
     return ok ? revealMnemonic() : null;
   };
 
@@ -86,6 +128,41 @@ export function RecoveryPhraseScreen({ mode }: Props) {
     if (mode === 'create') router.push({ pathname: '/set-password', params: { flow: 'create' } });
     else router.back();
   };
+
+  if (passwordGate) {
+    return (
+      <Screen paddingTop={16} gap={24}>
+        <NavHeader title="Confirm it's you" onBack={cancelGate} />
+        <View style={styles.intro}>
+          <Text accessibilityRole="header" size={28} lineHeight={1.15} weight={700} tracking={-0.01}>
+            Enter your password
+          </Text>
+          <Text size={15} lineHeight={1.5} color={colors.textSecondary}>
+            {passwordGate === 'reveal'
+              ? 'Confirm your wallet password to reveal your secret recovery phrase.'
+              : 'Confirm your wallet password to back up your secret recovery phrase.'}
+          </Text>
+        </View>
+        <PasswordField
+          label="Password"
+          value={gatePassword}
+          onChangeText={(v) => {
+            setGatePassword(v);
+            setGateError(null);
+          }}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={submitGate}
+          error={gateError}
+        />
+        <Spacer />
+        <View style={styles.footer}>
+          <Button label="Continue" onPress={submitGate} loading={gateBusy} />
+          <Button label="Cancel" variant="secondary" onPress={cancelGate} />
+        </View>
+      </Screen>
+    );
+  }
 
   if (exporting) {
     return (
