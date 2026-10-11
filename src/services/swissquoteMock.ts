@@ -1,5 +1,6 @@
 import type { Address, Hash } from 'viem';
 
+import type { TransferAsset } from '@/features/market/types';
 import type { NetworkId } from '@/lib/networks';
 
 /**
@@ -66,14 +67,14 @@ export const linkSwissquoteAccount = (customerId: string, address: Address, mess
 export const unlinkSwissquoteAccount = (customerId: string) =>
   call<SwissquoteCustomer>('/unlink', { method: 'POST', body: JSON.stringify({ customerId }) });
 
-export const confirmSwissquoteDeposit = (customerId: string, networkId: NetworkId, txHash: Hash) =>
+export const confirmSwissquoteDeposit = (customerId: string, networkId: NetworkId, asset: TransferAsset, txHash: Hash) =>
   call<{ customer: SwissquoteCustomer; creditedChf: number }>('/transfer/deposit-confirmed', {
     method: 'POST',
-    body: JSON.stringify({ customerId, networkId, txHash }),
+    body: JSON.stringify({ customerId, networkId, asset, txHash }),
   });
 
 /** Always lands on the customer's already-linked address — never a caller-supplied one. */
-export const withdrawFromSwissquote = (customerId: string, networkId: NetworkId, asset: 'ETH', amount: string) =>
+export const withdrawFromSwissquote = (customerId: string, networkId: NetworkId, asset: TransferAsset, amount: string) =>
   call<{ txHash: Hash; customer: SwissquoteCustomer }>('/transfer/withdraw', {
     method: 'POST',
     body: JSON.stringify({ customerId, networkId, asset, amount }),

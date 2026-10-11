@@ -14,10 +14,11 @@ never reads `data.json` directly (only through these HTTP endpoints) and never h
 | --- | --- | --- |
 | Customer directory (name, account number, PIN) | ✅ three fake seeded customers | |
 | CHF balance / ledger | ✅ a number in `data.json`, adjusted by this server | |
-| FX rate (CHF per ETH) | ✅ a fixed constant (`DEMO_ETH_CHF` in `src/server.ts`) | |
+| FX rate (CHF per asset) | | ✅ fetched live from Swissquote's own quote service (`src/prices.ts`), same one the app uses — cached 30s, falls back to a fixed constant only if that fetch fails |
 | Wallet-ownership verification (`POST /link`) | | ✅ `viem`'s `verifyMessage` — a forged signature is rejected (tested) |
 | On-chain transfers, both directions | | ✅ real signed transactions on whichever testnet you use |
-| Deposit crediting (`POST /transfer/deposit-confirmed`) | | ✅ independently re-checks the transaction on-chain itself — never trusts the client's say-so |
+| Deposit crediting (`POST /transfer/deposit-confirmed`) | | ✅ independently re-checks the transaction on-chain itself (native value or, for ERC-20s, the `Transfer` log) — never trusts the client's say-so |
+| USDC/LINK transfers | ✅ addresses only verified on Sepolia; unsupported (clean `501`) elsewhere | ✅ on Sepolia: real ERC-20 `transfer()`, real `Transfer`-log verification |
 
 ## Setup
 
@@ -34,6 +35,8 @@ Or from the repo root: `npm run swissquote:mock`.
 
 **Fund the custodial address** (printed on startup) from a testnet faucet before testing
 withdrawals (`POST /transfer/withdraw`) — it needs real ETH to broadcast with, same as any wallet.
+For USDC/LINK withdrawals on Sepolia it also needs those tokens themselves (Circle's faucet at
+faucet.circle.com covers USDC; Chainlink's faucets.chain.link covers LINK).
 
 ## Endpoints
 
@@ -43,8 +46,8 @@ withdrawals (`POST /transfer/withdraw`) — it needs real ETH to broadcast with,
 | `GET /customers`, `GET /customers/:id` | Seeded demo customers (PIN omitted from responses). |
 | `POST /login` | `{ accountNumber, pin }` → customer record. All demo PINs are `0000`. |
 | `POST /link` | `{ customerId, address, message, signature }` — the ownership attestation. One address per customer, one customer per address. |
-| `POST /transfer/deposit-confirmed` | `{ customerId, networkId, txHash }` — call after a real send to the custodial address confirms; credits the mock CHF balance at the demo FX rate. |
-| `POST /transfer/withdraw` | `{ customerId, networkId, asset: 'ETH', amount }` — debits the balance and broadcasts a real send **only to the customer's already-linked address** (never a caller-supplied one — this is the Travel Rule check, made automatic). USDC/LINK are accepted policy but return `501` — not wired up yet. |
+| `POST /transfer/deposit-confirmed` | `{ customerId, networkId, asset?, txHash }` — call after a real send to the custodial address confirms; credits the mock CHF balance at the live rate. `asset` defaults to `'ETH'`; `'USDC'`/`'LINK'` decode the ERC-20 `Transfer` log instead of `tx.value`. |
+| `POST /transfer/withdraw` | `{ customerId, networkId, asset?, amount }` — debits the balance and broadcasts a real send **only to the customer's already-linked address** (never a caller-supplied one — this is the Travel Rule check, made automatic). `USDC`/`LINK` work on networks listed in `src/chains.ts`'s `ERC20` map (Sepolia only, for now); elsewhere a clean `501`. |
 | `GET /compliance/log` | Full audit trail of every link/deposit/withdraw. |
 
 `data.json` and `.env` are gitignored; `data.json` is recreated from the seed on first run.

@@ -121,6 +121,7 @@ export default function Review() {
         // this is actually mined — not here, since the tx may not be mined
         // yet and a one-shot attempt with no retry can silently lose it.
         swissquoteCustomerId: known?.kind === 'swissquote' ? swissquote?.customerId : undefined,
+        swissquoteAsset: known?.kind === 'swissquote' ? 'ETH' : undefined,
       });
       reset();
       router.dismissTo('/activity');

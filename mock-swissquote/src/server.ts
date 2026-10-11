@@ -1,5 +1,5 @@
 import express from 'express';
-import { formatEther, parseEther, verifyMessage, type Address, type Hash } from 'viem';
+import { erc20Abi, formatEther, formatUnits, parseEther, parseUnits, verifyMessage, type Address, type Hash } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import {
@@ -16,7 +16,8 @@ import {
   unlinkCustomer,
   type Customer,
 } from './store.ts';
-import { publicClientFor, walletClientFor, type NetworkId } from './chains.ts';
+import { erc20Address, ERC20_DECIMALS, publicClientFor, walletClientFor, type NetworkId } from './chains.ts';
+import { getChfPrices, type Asset } from './prices.ts';
 
 /**
  * Mock Swissquote server — stands in for a real bank backend + compliance
@@ -34,9 +35,6 @@ if (!PRIVATE_KEY) {
   throw new Error('Set CUSTODIAL_PRIVATE_KEY in mock-swissquote/.env — copy .env.example and fill it in.');
 }
 const custodial = privateKeyToAccount(PRIVATE_KEY);
-
-/** Fixed demo FX rate (CHF per ETH). Not a live price — a labeled demo constant. */
-const DEMO_ETH_CHF = 2800;
 
 const app = express();
 app.use(express.json());
@@ -128,7 +126,7 @@ app.post('/unlink', (req, res) => {
 });
 
 app.post('/transfer/deposit-confirmed', async (req, res) => {
-  const { customerId, networkId, txHash } = req.body ?? {};
+  const { customerId, networkId, txHash, asset } = req.body ?? {};
   const customer = getCustomer(String(customerId ?? ''));
   if (!customer?.linkedAddress) {
     res.status(400).json({ error: 'No linked wallet for this customer.' });
@@ -139,6 +137,7 @@ app.post('/transfer/deposit-confirmed', async (req, res) => {
     return;
   }
 
+  const assetId = (asset ?? 'ETH') as Asset;
   try {
     const client = publicClientFor(networkId as NetworkId);
     const [tx, receipt] = await Promise.all([
@@ -153,20 +152,50 @@ app.post('/transfer/deposit-confirmed', async (req, res) => {
       res.status(400).json({ error: "Transaction wasn't sent from this customer's linked wallet." });
       return;
     }
-    if (tx.to?.toLowerCase() !== custodial.address.toLowerCase()) {
-      res.status(400).json({ error: "Transaction wasn't sent to the Swissquote custodial address." });
-      return;
+
+    let amount: number;
+    if (assetId === 'ETH') {
+      if (tx.to?.toLowerCase() !== custodial.address.toLowerCase()) {
+        res.status(400).json({ error: "Transaction wasn't sent to the Swissquote custodial address." });
+        return;
+      }
+      amount = Number(formatEther(tx.value));
+    } else {
+      const tokenAddress = erc20Address(networkId as NetworkId, assetId);
+      if (!tokenAddress) {
+        res.status(501).json({ error: `${assetId} isn't wired up on ${networkId} yet.` });
+        return;
+      }
+      // Decode the ERC-20 Transfer event rather than trusting tx.value (always
+      // 0 for a contract call) or the calldata (which the client could lie about).
+      const transferLog = receipt.logs.find((log) => log.address.toLowerCase() === tokenAddress.toLowerCase());
+      if (!transferLog) {
+        res.status(400).json({ error: `Transaction has no ${assetId} transfer log.` });
+        return;
+      }
+      const [, from, to] = transferLog.topics;
+      const toAddr = to ? `0x${to.slice(-40)}` : undefined;
+      if (toAddr?.toLowerCase() !== custodial.address.toLowerCase()) {
+        res.status(400).json({ error: `${assetId} wasn't transferred to the Swissquote custodial address.` });
+        return;
+      }
+      const fromAddr = from ? `0x${from.slice(-40)}` : undefined;
+      if (fromAddr?.toLowerCase() !== customer.linkedAddress.toLowerCase()) {
+        res.status(400).json({ error: `${assetId} transfer log doesn't match the linked wallet.` });
+        return;
+      }
+      amount = Number(formatUnits(BigInt(transferLog.data), ERC20_DECIMALS[assetId]));
     }
-    const eth = Number(formatEther(tx.value));
-    if (!(eth > 0)) {
+    if (!(amount > 0)) {
       res.status(400).json({ error: 'Transaction carried no value.' });
       return;
     }
 
     markTxProcessed(String(txHash));
-    const creditedChf = eth * DEMO_ETH_CHF;
+    const prices = await getChfPrices();
+    const creditedChf = amount * prices[assetId];
     const updated = adjustBalance(customer.id, creditedChf);
-    appendAudit({ type: 'deposit', customerId: customer.id, detail: { txHash, networkId, eth, creditedChf } });
+    appendAudit({ type: 'deposit', customerId: customer.id, detail: { txHash, networkId, asset: assetId, amount, creditedChf } });
     res.json({ customer: publicCustomer(updated), creditedChf });
   } catch (e) {
     res.status(502).json({ error: `Could not verify the transaction on-chain: ${(e as Error).message}` });
@@ -180,18 +209,21 @@ app.post('/transfer/withdraw', async (req, res) => {
     res.status(400).json({ error: 'No linked wallet for this customer.' });
     return;
   }
-  if (asset !== 'ETH') {
-    // USDC/LINK withdrawals are accepted policy but not wired up yet (see README).
-    res.status(501).json({ error: `${asset} withdrawals aren't wired up yet — ETH only for now.` });
-    return;
-  }
 
-  const amountEth = Number(amount);
-  if (!(amountEth > 0)) {
+  const assetId = (asset ?? 'ETH') as Asset;
+  const amountNum = Number(amount);
+  if (!(amountNum > 0)) {
     res.status(400).json({ error: 'Invalid amount.' });
     return;
   }
-  const debitChf = amountEth * DEMO_ETH_CHF;
+  const tokenAddress = assetId === 'ETH' ? undefined : erc20Address(networkId as NetworkId, assetId);
+  if (assetId !== 'ETH' && !tokenAddress) {
+    res.status(501).json({ error: `${assetId} isn't wired up on ${networkId} yet.` });
+    return;
+  }
+
+  const prices = await getChfPrices();
+  const debitChf = amountNum * prices[assetId];
   if (customer.chfBalance < debitChf) {
     res.status(400).json({ error: 'Insufficient Swissquote balance.' });
     return;
@@ -202,12 +234,18 @@ app.post('/transfer/withdraw', async (req, res) => {
     // Travel Rule, made automatic: withdrawals only ever go to the one
     // address already verified for this customer, never an address supplied
     // in the request.
-    const hash = await wallet.sendTransaction({
-      to: customer.linkedAddress as Address,
-      value: parseEther(String(amountEth)),
-    });
+    const to = customer.linkedAddress as Address;
+    const hash =
+      assetId === 'ETH'
+        ? await wallet.sendTransaction({ to, value: parseEther(String(amountNum)) })
+        : await wallet.writeContract({
+            address: tokenAddress!,
+            abi: erc20Abi,
+            functionName: 'transfer',
+            args: [to, parseUnits(String(amountNum), ERC20_DECIMALS[assetId as 'USDC' | 'LINK'])],
+          });
     const updated = adjustBalance(customer.id, -debitChf);
-    appendAudit({ type: 'withdraw', customerId: customer.id, detail: { txHash: hash, networkId, amountEth, debitChf } });
+    appendAudit({ type: 'withdraw', customerId: customer.id, detail: { txHash: hash, networkId, asset: assetId, amount: amountNum, debitChf } });
     res.json({ txHash: hash, customer: publicCustomer(updated) });
   } catch (e) {
     res.status(502).json({ error: `Broadcast failed: ${(e as Error).message}` });

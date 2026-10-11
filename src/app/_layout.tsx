@@ -111,7 +111,7 @@ export default function RootLayout() {
           </Stack>
           {/* Previous / next / Done above every keyboard, so number pads (which
               have no return key) can always be closed. */}
-          <FocusedKeyboardToolbar theme={KEYBOARD_TOOLBAR_THEME} doneText="Done" />
+          <KeyboardToolbar theme={KEYBOARD_TOOLBAR_THEME} doneText="Done" />
         </PersistQueryClientProvider>
       </KeyboardProvider>
     </SafeAreaProvider>

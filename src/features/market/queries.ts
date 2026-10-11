@@ -319,7 +319,8 @@ export function useActivityConfirmations() {
           // stay pending and retry next tick rather than losing the credit
           // silently (it already landed on-chain regardless).
           try {
-            await confirmSwissquoteDeposit(item.swissquoteCustomerId, item.networkId, item.hash as Hash);
+            await confirmSwissquoteDeposit(item.swissquoteCustomerId, item.networkId, item.swissquoteAsset ?? 'ETH', item.hash as Hash);
+            showToast(`Deposit confirmed — Swissquote balance updated.`);
           } catch (e) {
             console.warn('[swissquote] deposit not confirmed with the mock server yet, will retry:', e);
             continue;

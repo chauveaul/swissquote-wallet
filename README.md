@@ -121,18 +121,25 @@ simulation.
 
 Accepted currencies are ETH, USDC and LINK — not WBTC, a third-party-custodied wrapped claim on
 BTC rather than BTC itself, which a regulated custodian can't accept without separate due
-diligence on that custodian. Execution today only covers ETH (Send/Review are native-ETH only;
-USDC/LINK transfers are a tracked follow-up, same as ERC-20 sends generally).
+diligence on that custodian. All three execute for real on Sepolia (native sends for ETH, real
+ERC-20 `transfer()` calls for USDC/LINK against addresses verified on-chain before being
+hardcoded — see `src/lib/erc20.ts`); on other testnets only ETH is wired up, since USDC/LINK
+addresses differ per network and weren't verified for the rest. CHF crediting uses a live rate
+fetched from Swissquote's own quote service (`mock-swissquote/src/prices.ts`), not a fixed
+constant.
 
 ```bash
 npm run swissquote:mock   # separate terminal, needs its own mock-swissquote/.env — see its README
 ```
 
 Then in the app: Settings → Link your Swissquote account → pick a demo customer (PIN `0000`) →
-sign. "Move ETH to Swissquote" reuses Send/Review as normal, addressed to the custodial account.
-"Move ETH to wallet" calls the mock server directly, which only ever withdraws to the address it
-already verified — the Travel Rule check, made automatic, demonstrated by rejecting any other
-destination.
+sign. The Swissquote account screen has one "Move money" control — pick a direction (to
+Swissquote / to wallet) and an asset (ETH/USDC/LINK), enter an amount. This is a self-contained
+flow, not a reuse of Send/Review (which stay native-ETH-only), so it can't affect the ordinary
+Send path. Withdrawals only ever land on the address the mock server already verified — the
+Travel Rule check, made automatic, demonstrated by rejecting any other destination — and a toast
+confirms once a deposit is actually credited, which can take a few seconds after the chain mines
+it.
 
 ## Security model
 
