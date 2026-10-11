@@ -1,4 +1,4 @@
-import { findContact, parseRecipient, sanitizeAmount } from '@/features/send/draft';
+import { exceedsBalance, findContact, maxSendable, parseRecipient, sanitizeAmount } from '@/features/send/draft';
 import { groupActivity } from '@/features/market/queries';
 import { demoActivity, demoContacts, DEMO_NOW } from '@/features/market/fixtures';
 
@@ -26,6 +26,25 @@ describe('send draft', () => {
     expect(sanitizeAmount('0,5')).toBe('0.5');
     expect(sanitizeAmount('1.2.3')).toBe('1.23');
     expect(sanitizeAmount('abc12')).toBe('12');
+  });
+});
+
+describe('max amount', () => {
+  it('never rounds up past the balance', () => {
+    // toFixed(4) would give 0.0457, more than the balance.
+    expect(maxSendable(0.04567, 0)).toBe('0.04567');
+    expect(exceedsBalance(Number(maxSendable(0.04567, 0)), 0, 0.04567)).toBe(false);
+  });
+
+  it('leaves room for the fee', () => {
+    const max = maxSendable(0.1, 0.000021);
+    expect(max).toBe('0.099979');
+    expect(exceedsBalance(Number(max), 0.000021, 0.1)).toBe(false);
+    expect(exceedsBalance(0.09998, 0.000021, 0.1)).toBe(true);
+  });
+
+  it('is zero when the fee exceeds the balance', () => {
+    expect(maxSendable(0.00001, 0.001)).toBe('0');
   });
 });
 

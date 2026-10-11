@@ -13,7 +13,7 @@ import { useFeeEstimate, useSpotPrice, useToken } from '@/features/market/querie
 import { useFiat } from '@/features/settings/useFiat';
 import type { Contact } from '@/features/market/types';
 import type { AccountMeta } from '@/features/wallet/store';
-import { parseRecipient, useSendDraft } from '@/features/send/draft';
+import { exceedsBalance, maxSendable, parseRecipient, useSendDraft } from '@/features/send/draft';
 import { useSponsorship } from '@/features/send/gasless';
 import { identifyRecipient } from '@/features/send/recipient';
 import { accountColor } from '@/features/wallet/accountColor';
@@ -48,7 +48,7 @@ export default function Send() {
   const fee = sponsorship?.sponsored ? 0 : (feeEstimate?.eth ?? 0);
 
   const amountError =
-    value <= 0 ? 'Enter an amount.' : value + fee > balance ? 'Insufficient balance to cover amount and network fee.' : null;
+    value <= 0 ? 'Enter an amount.' : exceedsBalance(value, fee, balance) ? 'Insufficient balance to cover amount and network fee.' : null;
   const toError = !to
     ? 'Enter a recipient address.'
     : !recipient
@@ -165,7 +165,7 @@ export default function Send() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Use maximum amount"
-            onPress={() => setAmount(Math.max(balance - fee, 0).toFixed(4))}
+            onPress={() => setAmount(maxSendable(balance, fee))}
             style={styles.maxChip}
           >
             <Text size={13} weight={700}>

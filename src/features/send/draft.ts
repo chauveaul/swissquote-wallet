@@ -1,4 +1,4 @@
-import { getAddress, isAddress, type Address } from 'viem';
+import { formatUnits, getAddress, isAddress, type Address } from 'viem';
 import { create } from 'zustand';
 
 import { demoQuotes } from '@/features/market/fixtures';
@@ -50,4 +50,20 @@ export function findContact(contacts: readonly Contact[], address: Address | nul
 export function feeFor(speed: FeeSpeed, ethChf: number | null) {
   const eth = demoQuotes.feeEth[speed];
   return { eth, chf: ethChf === null ? null : eth * ethChf, eta: demoQuotes.feeEta[speed] };
+}
+
+// Balances are read at gwei precision (see `toEther`), so amounts are compared
+// in whole gwei: float maths on ETH values can round past the balance.
+const GWEI = 1e9;
+const toGwei = (eth: number) => Math.round(eth * GWEI);
+
+/** Largest sendable amount: balance minus fee, rounded down, never up past the balance. */
+export function maxSendable(balance: number, fee: number): string {
+  const gwei = toGwei(balance) - Math.ceil(fee * GWEI);
+  return gwei > 0 ? formatUnits(BigInt(gwei), 9) : '0';
+}
+
+/** True when amount plus fee is more than the balance. */
+export function exceedsBalance(amount: number, fee: number, balance: number): boolean {
+  return toGwei(amount) + Math.ceil(fee * GWEI) > toGwei(balance);
 }
