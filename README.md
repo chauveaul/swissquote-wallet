@@ -123,24 +123,33 @@ are real, and `COMPLIANCE.md` maps each one to the Swiss rule it addresses:
   the address is a plain key-controlled account, or delegated (EIP-7702) only to an approved
   contract.
 - **Sanctions screening:** Chainalysis' on-chain OFAC oracle plus the bank's own list, fail-closed.
-- **Custody:** the bank holds ETH per customer and never converts it; CHF is only a valuation.
+- **Custody:** the bank holds ETH, USDC and LINK per customer and never converts them; CHF is
+  only a valuation at Swissquote's live rate.
 - **Transfers:** withdrawals only ever go to the verified address. Deposits are re-read on-chain,
   attributed by sender, and held for review (not credited) if any check fails.
 
 Accepted currencies are ETH, USDC and LINK — not WBTC, a third-party-custodied wrapped claim on
 BTC rather than BTC itself, which a regulated custodian can't accept without separate due
-diligence on that custodian. Execution today only covers ETH (Send/Review are native-ETH only;
-USDC/LINK transfers are a tracked follow-up, same as ERC-20 sends generally).
+diligence on that custodian. All three execute for real on Sepolia (native sends for ETH, real
+ERC-20 `transfer()` calls for USDC/LINK against addresses verified on-chain before being
+hardcoded — see `src/lib/erc20.ts`); on other testnets only ETH is wired up, since USDC/LINK
+addresses differ per network and weren't verified for the rest. Swissquote holds each asset in
+custody as is; the CHF figure is a valuation at a live rate fetched from Swissquote's own quote
+service (`mock-swissquote/src/prices.ts`), not a fixed constant.
 
 ```bash
 npm run swissquote:mock   # separate terminal, needs its own mock-swissquote/.env — see its README
 ```
 
 Then in the app: Settings → Link your Swissquote account → pick a demo customer (PIN `0000`) →
-sign. "Move ETH to Swissquote" reuses Send/Review as normal, addressed to the custodial account.
-"Move ETH to wallet" asks the server to withdraw, which only ever sends to the address it already
-verified. The bank session lasts 15 minutes; after that, or an app restart, the account screen asks
-for the PIN again.
+sign. The Swissquote account screen has one "Move money" control: pick a direction (to
+Swissquote / to wallet) and an asset (ETH/USDC/LINK), enter an amount. This is a self-contained
+flow, not a reuse of Send/Review (which stay native-ETH-only and may be gasless), so deposits are
+always plain transactions signed by the customer's own address, which is what the bank attributes
+them by. Withdrawals only ever land on the address the mock server already verified, after a
+sanctions screen and control check. A toast confirms once a deposit is credited (or held for
+review), a few seconds after the chain mines it. The bank session lasts 15 minutes; after that, or
+an app restart, the account screen asks for the PIN again.
 
 ## Security model
 

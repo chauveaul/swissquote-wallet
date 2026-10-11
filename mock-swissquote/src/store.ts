@@ -12,8 +12,13 @@ import path from 'node:path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = path.join(__dirname, '..', 'data.json');
 
-/** Fixed demo FX rate (CHF per ETH), used only to show a CHF valuation. */
-export const DEMO_ETH_CHF = 2800;
+/** Assets Swissquote holds in custody. Not WBTC — see the main README. */
+export type Asset = 'ETH' | 'USDC' | 'LINK';
+export const ASSETS: readonly Asset[] = ['ETH', 'USDC', 'LINK'];
+export const ASSET_DECIMALS: Record<Asset, number> = { ETH: 18, USDC: 6, LINK: 18 };
+
+/** CHF per ETH used only to migrate an old CHF-ledger `data.json` into ETH custody. */
+const LEGACY_ETH_CHF = 2800;
 
 export type Customer = {
   id: string;
@@ -21,10 +26,11 @@ export type Customer = {
   accountNumber: string;
   pin: string;
   /**
-   * Custody ledger: ETH (in wei, as a decimal string) the bank holds *for* this
+   * Custody ledger: per asset, the amount (base units as a decimal string —
+   * wei for ETH/LINK, 6-decimal units for USDC) the bank holds *for* this
    * customer. Held, not sold — CHF is only ever a valuation of it.
    */
-  ethBalanceWei: string;
+  holdings: Record<Asset, string>;
   linkedAddress: string | null;
   linkedAt: string | null;
   /** Audit entry holding the signed ownership proof for `linkedAddress`. */
@@ -61,7 +67,7 @@ export type AuditEntry = {
 };
 
 type Session = { tokenHash: string; customerId: string; expiresAt: string };
-type HeldDeposit = { txHash: string; networkId: string; from: string; valueWei: string; reason: string; at: string };
+type HeldDeposit = { txHash: string; networkId: string; from: string; asset: Asset; amount: string; reason: string; at: string };
 
 type Data = {
   customers: Customer[];
@@ -83,7 +89,7 @@ const SEED: Customer[] = [
 ].map((c) => ({
   ...c,
   pin: '0000',
-  ethBalanceWei: '0',
+  holdings: { ETH: '0', USDC: '0', LINK: '0' },
   linkedAddress: null,
   linkedAt: null,
   linkProofId: null,
@@ -101,14 +107,15 @@ function entryHash(e: Omit<AuditEntry, 'hash'>): string {
 function load(): Data {
   const empty: Data = { customers: structuredClone(SEED), auditLog: [], processedTxHashes: [], sessions: [], heldDeposits: [] };
   if (!existsSync(DATA_PATH)) return empty;
-  type LegacyCustomer = Partial<Customer> & { chfBalance?: number };
+  type LegacyCustomer = Partial<Customer> & { chfBalance?: number; ethBalanceWei?: string };
   const raw = JSON.parse(readFileSync(DATA_PATH, 'utf8')) as Omit<Partial<Data>, 'customers'> & { customers: LegacyCustomer[] };
-  // Older data.json: CHF ledger instead of ETH custody, unchained audit log.
+  // Older data.json: CHF ledger or ETH-only custody instead of per-asset custody, unchained audit log.
   const customers = raw.customers.map((c) => {
-    const { chfBalance, ...rest } = c;
-    const ethBalanceWei =
-      c.ethBalanceWei ?? (chfBalance ? String(BigInt(Math.round((chfBalance / DEMO_ETH_CHF) * 1e9)) * 1_000_000_000n) : '0');
-    return { ...SEED[0]!, ...rest, ethBalanceWei } as Customer;
+    const { chfBalance, ethBalanceWei, ...rest } = c;
+    const legacyEth =
+      ethBalanceWei ?? (chfBalance ? String(BigInt(Math.round((chfBalance / LEGACY_ETH_CHF) * 1e9)) * 1_000_000_000n) : '0');
+    const holdings = c.holdings ?? { ETH: legacyEth, USDC: '0', LINK: '0' };
+    return { ...SEED[0]!, ...rest, holdings } as Customer;
   });
   const legacy = (raw.auditLog ?? []).some((e) => !('hash' in e));
   const data: Data = {
@@ -120,7 +127,7 @@ function load(): Data {
   };
   if (legacy) {
     for (const e of raw.auditLog ?? []) pushAudit(data, { ...e, detail: { ...e.detail, legacyId: e.id, legacyTimestamp: e.timestamp } });
-    pushAudit(data, { type: 'migration', customerId: null, detail: { note: 'Chained pre-existing unchained entries; custody ledger moved from CHF to ETH.' } });
+    pushAudit(data, { type: 'migration', customerId: null, detail: { note: 'Chained pre-existing unchained entries; custody ledger moved to per-asset holdings.' } });
   }
   return data;
 }
@@ -175,12 +182,12 @@ export function updateCustomer(id: string, patch: Partial<Customer>): Customer {
   return c;
 }
 
-export function adjustEthBalance(id: string, deltaWei: bigint): Customer {
+export function adjustHolding(id: string, asset: Asset, delta: bigint): Customer {
   const c = getCustomer(id);
   if (!c) throw new Error('Unknown customer');
-  const next = BigInt(c.ethBalanceWei) + deltaWei;
+  const next = BigInt(c.holdings[asset]) + delta;
   if (next < 0n) throw new Error('Custody balance would go negative');
-  return updateCustomer(id, { ethBalanceWei: String(next) });
+  return updateCustomer(id, { holdings: { ...c.holdings, [asset]: String(next) } });
 }
 
 // ---------------------------------------------------------------------------
@@ -256,6 +263,7 @@ export function verifyAuditChain(log: AuditEntry[] = data.auditLog): { ok: true;
   return { ok: true, entries: log.length };
 }
 
-export function totalCustodyWei(): bigint {
-  return data.customers.reduce((sum, c) => sum + BigInt(c.ethBalanceWei), 0n);
+/** Sum of what the bank owes all customers in one asset (base units). */
+export function totalCustody(asset: Asset): bigint {
+  return data.customers.reduce((sum, c) => sum + BigInt(c.holdings[asset]), 0n);
 }

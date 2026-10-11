@@ -3,6 +3,7 @@ import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { create } from 'zustand';
 
+import { showToast } from '@/components/Toast';
 import { useNetworkId, useSelectedAccount, useWallet, type AccountMeta } from '@/features/wallet/store';
 import { DEMO_MODE, MARKET_DATA } from '@/lib/config';
 import { formatNumber } from '@/lib/format';
@@ -323,8 +324,10 @@ export function useActivityConfirmations() {
             if (result.status === 'held') {
               // On-chain it succeeded, but Swissquote didn't credit it.
               update(item.id, { status: 'confirmed', eta: undefined, title: 'Deposit held for review', failureReason: result.reason });
+              showToast('Deposit held for compliance review.');
               continue;
             }
+            showToast(`Deposit confirmed: ${result.amount} ${result.asset} credited to Swissquote.`);
           } catch (e) {
             console.warn('[swissquote] deposit not confirmed with the mock server yet, will retry:', e);
             continue;

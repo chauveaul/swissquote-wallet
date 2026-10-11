@@ -14,6 +14,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { FocusedKeyboardToolbar } from '@/components/FocusedKeyboardToolbar';
+import { ToastHost } from '@/components/Toast';
 import { useActivityConfirmations } from '@/features/market/queries';
 import { useWallet } from '@/features/wallet/store';
 import { useAutoLock } from '@/features/wallet/useAutoLock';
@@ -112,6 +113,7 @@ export default function RootLayout() {
           {/* Previous / next / Done above every keyboard, so number pads (which
               have no return key) can always be closed. */}
           <FocusedKeyboardToolbar theme={KEYBOARD_TOOLBAR_THEME} doneText="Done" />
+          <ToastHost />
         </PersistQueryClientProvider>
       </KeyboardProvider>
     </SafeAreaProvider>

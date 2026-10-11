@@ -1,5 +1,6 @@
 import type { Address, Hash } from 'viem';
 
+import type { TransferAsset } from '@/features/market/types';
 import type { NetworkId } from '@/lib/networks';
 
 /**
@@ -66,9 +67,9 @@ export type SwissquoteCustomer = {
   id: string;
   name: string;
   accountNumber: string;
-  /** ETH the bank holds in custody for this customer. */
-  ethBalance: string;
-  /** CHF valuation of `ethBalance` (demo rate). */
+  /** What the bank holds in custody for this customer, per asset (decimal strings). */
+  holdings: Record<TransferAsset, string>;
+  /** CHF valuation of `holdings` at Swissquote's live rate. */
   chfBalance: number;
   linkedAddress: Address | null;
   linkedAt: string | null;
@@ -108,17 +109,21 @@ export const unlinkSwissquoteAccount = (pin: string) =>
   call<SwissquoteCustomer>('/unlink', { method: 'POST', body: JSON.stringify({ pin }) });
 
 /**
- * Hint that a deposit was mined. The server attributes it from the on-chain
- * sender itself; `held` means it was not credited and went to compliance review.
+ * Hint that a deposit was mined. The server works out the asset, amount and
+ * customer from the chain itself; `held` means it was not credited and went
+ * to compliance review.
  */
 export const confirmSwissquoteDeposit = (networkId: NetworkId, txHash: Hash) =>
-  call<{ status: 'credited'; customer: SwissquoteCustomer } | { status: 'held'; reason: string }>(
+  call<
+    | { status: 'credited'; asset: TransferAsset; amount: string; customer: SwissquoteCustomer }
+    | { status: 'held'; reason: string }
+  >(
     '/transfer/deposit-confirmed',
     { method: 'POST', body: JSON.stringify({ networkId, txHash }) },
   );
 
 /** Always lands on the customer's already-linked address — never a caller-supplied one. */
-export const withdrawFromSwissquote = (networkId: NetworkId, asset: 'ETH', amount: string) =>
+export const withdrawFromSwissquote = (networkId: NetworkId, asset: TransferAsset, amount: string) =>
   call<{ txHash: Hash; customer: SwissquoteCustomer }>('/transfer/withdraw', {
     method: 'POST',
     body: JSON.stringify({ networkId, asset, amount }),

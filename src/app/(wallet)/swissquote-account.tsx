@@ -8,14 +8,17 @@ import { Callout } from '@/components/Callout';
 import { NavHeader } from '@/components/Header';
 import { PasswordField } from '@/components/PasswordField';
 import { Screen, Spacer } from '@/components/Screen';
+import { SegmentedControl } from '@/components/SegmentedControl';
 import { SettingsGroup, SettingsRow } from '@/components/SettingsList';
 import { Overline, Text } from '@/components/Text';
-import { useToken } from '@/features/market/queries';
-import { useSendDraft } from '@/features/send/draft';
+import { showToast } from '@/components/Toast';
+import { appNow, useLocalActivity, useSpotPrice } from '@/features/market/queries';
+import type { TransferAsset } from '@/features/market/types';
 import { useFiat } from '@/features/settings/useFiat';
 import { confirmUserPresence } from '@/features/wallet/biometrics';
 import { useNetworkId, useSelectedAccount, useSwissquote, useWallet } from '@/features/wallet/store';
 import { formatNumber, truncateAddress } from '@/lib/format';
+import { estimateTransferFee, getAssetBalance, sendAsset } from '@/services/chain';
 import {
   endSwissquoteSession,
   getSwissquoteCustomer,
@@ -26,32 +29,49 @@ import {
 } from '@/services/swissquoteMock';
 import { colors, radii } from '@/theme/tokens';
 
+const ASSETS: { value: TransferAsset; label: string }[] = [
+  { value: 'ETH', label: 'ETH' },
+  { value: 'USDC', label: 'USDC' },
+  { value: 'LINK', label: 'LINK' },
+];
+const DIRECTIONS: { value: Direction; label: string }[] = [
+  { value: 'toSwissquote', label: 'To Swissquote' },
+  { value: 'toWallet', label: 'To wallet' },
+];
+type Direction = 'toSwissquote' | 'toWallet';
+
 /**
- * Not drawn in the design. The ETH the mock Swissquote server holds in
- * custody for the linked customer (valued in the display currency), with
- * real transfers in both directions on the real chain — see
- * `mock-swissquote/README.md` for what's mocked vs real. Everything here
- * needs a bank session (PIN); unlinking asks for the PIN again.
+ * Not drawn in the design. What the mock Swissquote server holds in custody
+ * for the linked customer (per asset, valued in the display currency), with
+ * one unified transfer flow for ETH/USDC/LINK in both directions, real on
+ * the real chain either way — see `mock-swissquote/README.md` for exactly
+ * what's mocked vs real. Everything here needs a bank session (PIN);
+ * unlinking asks for the PIN again.
  */
 export default function SwissquoteAccount() {
   const fiat = useFiat();
   const swissquote = useSwissquote();
   const unlinkSwissquote = useWallet((s) => s.unlinkSwissquote);
+  const getSigner = useWallet((s) => s.getSigner);
   const account = useSelectedAccount();
   const networkId = useNetworkId();
-  const eth = useToken(account.index, 'ETH');
-  const setTo = useSendDraft((s) => s.setTo);
+  const addActivity = useLocalActivity((s) => s.add);
   const queryClient = useQueryClient();
-  const [withdrawAmount, setWithdrawAmount] = useState('');
+
+  const [direction, setDirection] = useState<Direction>('toSwissquote');
+  const [asset, setAsset] = useState<TransferAsset>('ETH');
+  const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pin, setPin] = useState('');
   const [signingIn, setSigningIn] = useState(false);
   const [unlinkPin, setUnlinkPin] = useState('');
-  // Bumped after sign-in so the (module-level) session is re-read.
+  // Bumped after sign-in or a failed call so the (module-level) session is re-read.
   const [, setSessionVersion] = useState(0);
   const signedIn = !!swissquote && hasSwissquoteSession(swissquote.customerId);
+
+  const priceChf = useSpotPrice(asset);
 
   const { data: customer, isRefetching, refetch } = useQuery({
     queryKey: ['swissquote', 'customer', swissquote?.customerId],
@@ -61,7 +81,17 @@ export default function SwissquoteAccount() {
     retry: false,
   });
 
+  const { data: walletBalance } = useQuery({
+    queryKey: ['swissquote', 'walletBalance', account.address, networkId, asset],
+    queryFn: () => getAssetBalance(networkId, asset, account.address),
+    refetchInterval: 15_000,
+  });
+  const walletAmount = Number(walletBalance?.formatted ?? '0');
+
   if (!swissquote) return <Redirect href="/link-swissquote" />;
+
+  // Custody: only what Swissquote holds for the customer in this asset can come back.
+  const maxFromSwissquote = signedIn && customer ? Number(customer.holdings[asset]) : 0;
 
   const signIn = async () => {
     setError(null);
@@ -77,27 +107,54 @@ export default function SwissquoteAccount() {
     }
   };
 
-  const moveToSwissquote = () => {
-    setTo(swissquote.custodialAddress);
-    router.push('/send');
-  };
-
-  const moveToWallet = async () => {
+  const move = async () => {
     setError(null);
-    const amount = withdrawAmount;
-    if (!(Number(amount) > 0)) {
+    const amountNum = Number(amount);
+    if (!(amountNum > 0)) {
       setError('Enter an amount.');
       return;
     }
-    const approved = await confirmUserPresence('Withdraw from Swissquote');
+    const approved = await confirmUserPresence(direction === 'toSwissquote' ? 'Move to Swissquote' : 'Withdraw from Swissquote');
     if (!approved) return;
     setBusy(true);
     try {
-      await withdrawFromSwissquote(networkId, 'ETH', amount);
-      setWithdrawAmount('');
-      await Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ['portfolio'] })]);
+      if (direction === 'toSwissquote') {
+        if (amountNum > walletAmount) throw new Error(`Insufficient ${asset} balance.`);
+        const hash = await sendAsset({
+          signer: getSigner(account.index),
+          networkId,
+          asset,
+          to: swissquote.custodialAddress,
+          amount,
+          speed: 'market',
+        });
+        const { feeEth } = await estimateTransferFee(networkId, asset, 'market');
+        addActivity({
+          id: hash,
+          kind: 'send',
+          title: 'Moved to Swissquote',
+          status: 'pending',
+          amount: `− ${formatNumber(amountNum, 4)} ${asset}`,
+          valueChf: priceChf === null ? null : amountNum * priceChf,
+          timestamp: appNow(),
+          hash,
+          accountIndex: account.index,
+          networkId,
+          counterparty: { label: `Swissquote (${swissquote.name})`, address: swissquote.custodialAddress },
+          fee: { native: `${formatNumber(feeEth, 5)} ETH`, chf: null },
+          swissquoteCustomerId: swissquote.customerId,
+          swissquoteAsset: asset,
+        });
+        showToast(`Sent — waiting for the chain to confirm.`);
+      } else {
+        if (amountNum > maxFromSwissquote) throw new Error(`Insufficient ${asset} held at Swissquote.`);
+        const { txHash } = await withdrawFromSwissquote(networkId, asset, amount);
+        showToast(`Withdrawal sent — ${truncateAddress(txHash)}.`);
+        await Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ['swissquote', 'walletBalance'] })]);
+      }
+      setAmount('');
     } catch (e) {
-      setError(e instanceof Error ? e.message.split('\n')[0]! : 'Withdrawal failed.');
+      setError(e instanceof Error ? e.message.split('\n')[0]! : 'Transfer failed.');
     } finally {
       setBusy(false);
       setSessionVersion((v) => v + 1);
@@ -122,6 +179,8 @@ export default function SwissquoteAccount() {
     router.dismissTo('/settings');
   };
 
+  const available = direction === 'toSwissquote' ? walletAmount : maxFromSwissquote;
+
   return (
     <Screen background={colors.surfaceMuted} paddingHorizontal={16} gap={16}>
       <View style={styles.header}>
@@ -134,7 +193,7 @@ export default function SwissquoteAccount() {
       </Callout>
 
       {!signedIn ? (
-        <View style={styles.withdrawCard}>
+        <View style={styles.moveCard}>
           <PasswordField
             label={`PIN for account ${swissquote.accountNumber}`}
             value={pin}
@@ -149,56 +208,62 @@ export default function SwissquoteAccount() {
       <View style={styles.balanceCard}>
         <Overline color={colors.onDarkMuted}>Held in custody at Swissquote</Overline>
         <Text size={36} weight={700} color={colors.surface} tracking={-0.02}>
-          {signedIn && customer ? `${formatNumber(Number(customer.ethBalance), 4)} ETH` : '···'}
+          {signedIn && customer ? fiat.format(customer.chfBalance) : '···'}
         </Text>
-        <Text size={15} color={colors.onDarkMuted}>
-          {signedIn && customer ? `≈ ${fiat.format(customer.chfBalance)}` : 'Sign in to see your balance'}
+        <Text size={13} color={colors.onDarkMuted}>
+          {signedIn && customer
+            ? ASSETS.map((a) => `${formatNumber(Number(customer.holdings[a.value]), 4)} ${a.label}`).join(' · ')
+            : 'Sign in to see your balance'}
         </Text>
         <Text size={13} color={colors.onDarkMuted}>
           Account {swissquote.accountNumber} · linked {new Date(swissquote.linkedAt).toLocaleDateString()}
         </Text>
       </View>
 
+      <Callout tone="info" size={13}>
+        Keep your crypto one tap from your Swissquote account instead of a separate wallet to
+        manage — your keys stay yours, and your assets stay in the Swissquote ecosystem.
+      </Callout>
+
       <SettingsGroup label="Display">
-        <SettingsRow
-          label="Currency"
-          value={fiat.code}
-          onPress={() => router.push('/currency')}
-          last
-        />
+        <SettingsRow label="Currency" value={fiat.code} onPress={() => router.push('/currency')} last />
       </SettingsGroup>
 
       <SettingsGroup label="Linked wallet">
         <SettingsRow label="Custodial address" detail={truncateAddress(swissquote.custodialAddress)} mono />
-        <SettingsRow label="Wallet balance" value={`${formatNumber(eth?.amount ?? 0, 4)} ETH`} last />
+        <SettingsRow label={`Wallet balance (${asset})`} value={formatNumber(walletAmount, 4)} last />
       </SettingsGroup>
 
-      <Button label="Move ETH to Swissquote" onPress={moveToSwissquote} />
-
-      <View style={styles.withdrawCard}>
-        <Overline>Move ETH to wallet</Overline>
-        <View style={styles.withdrawRow}>
+      <View style={styles.moveCard}>
+        <Overline>Move money</Overline>
+        <SegmentedControl accessibilityLabel="Direction" options={DIRECTIONS} value={direction} onChange={setDirection} />
+        <SegmentedControl accessibilityLabel="Asset" options={ASSETS} value={asset} onChange={setAsset} />
+        <View style={styles.moveRow}>
           <TextInput
-            accessibilityLabel="Amount in ETH"
-            value={withdrawAmount}
-            onChangeText={setWithdrawAmount}
+            accessibilityLabel={`Amount in ${asset}`}
+            value={amount}
+            onChangeText={setAmount}
             placeholder="0.0000"
             placeholderTextColor={colors.iconMuted}
             keyboardType="decimal-pad"
             inputMode="decimal"
-            style={styles.withdrawInput}
+            style={styles.moveInput}
           />
           <Button
-            label="Withdraw"
-            onPress={moveToWallet}
+            label="Move"
+            onPress={move}
             loading={busy}
-            disabled={!signedIn}
-            style={styles.withdrawButton}
+            disabled={direction === 'toWallet' && !signedIn}
+            style={styles.moveButton}
           />
         </View>
         <Text size={13} color={colors.textMuted}>
-          Always lands on {truncateAddress(account.address)} — the address Swissquote already
-          verified for this account. Each withdrawal is screened against sanctions lists first.
+          Available: {formatNumber(available, 4)} {asset}
+        </Text>
+        <Text size={13} color={colors.textMuted}>
+          {direction === 'toSwissquote'
+            ? `Sent to Swissquote's custodial address — only a verified wallet can land here.`
+            : `Always lands on ${truncateAddress(account.address)} — the address Swissquote already verified for this account — after a sanctions screen.`}
         </Text>
       </View>
 
@@ -242,9 +307,9 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 6,
   },
-  withdrawCard: { gap: 10 },
-  withdrawRow: { flexDirection: 'row', gap: 8 },
-  withdrawInput: {
+  moveCard: { gap: 10 },
+  moveRow: { flexDirection: 'row', gap: 8 },
+  moveInput: {
     flex: 1,
     height: 48,
     paddingHorizontal: 14,
@@ -254,5 +319,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.ink,
   },
-  withdrawButton: { width: 120 },
+  moveButton: { width: 100 },
 });

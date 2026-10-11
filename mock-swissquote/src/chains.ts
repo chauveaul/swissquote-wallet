@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, type Chain, type LocalAccount } from 'viem';
+import { createPublicClient, createWalletClient, http, type Address, type Chain, type LocalAccount } from 'viem';
 import {
   arbitrum,
   arbitrumSepolia,
@@ -41,6 +41,26 @@ const CHAINS: Record<NetworkId, { chain: Chain; rpc: string }> = {
   baseSepolia: { chain: baseSepolia, rpc: baseSepolia.rpcUrls.default.http[0]! },
   polAmoy: { chain: polygonAmoy, rpc: polygonAmoy.rpcUrls.default.http[0]! },
 };
+
+/**
+ * ERC-20 addresses verified on-chain (symbol/decimals/name read back) before
+ * being hardcoded — not guessed. Only Sepolia is filled in: USDC/LINK
+ * addresses differ per network and weren't verified for the others, so
+ * those are left unsupported rather than wrong. Native ETH needs no entry.
+ */
+export const ERC20: Partial<Record<NetworkId, Partial<Record<'USDC' | 'LINK', Address>>>> = {
+  sepolia: {
+    USDC: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+    LINK: '0x779877A7B0D9E8603169DdbD7836e478b4624789',
+  },
+};
+
+export function erc20Address(id: NetworkId, token: 'USDC' | 'LINK'): Address | undefined {
+  return ERC20[id]?.[token];
+}
+
+/** Standard decimals for these tokens (verified on-chain alongside the addresses above). */
+export const ERC20_DECIMALS: Record<'USDC' | 'LINK', number> = { USDC: 6, LINK: 18 };
 
 function entry(id: NetworkId) {
   const found = CHAINS[id];

@@ -73,6 +73,8 @@ export type ActivityItem = {
   /** Set when this send is a deposit to the linked Swissquote account — tells
    * the confirmation poller to notify the mock server once it's mined. */
   swissquoteCustomerId?: string;
+  /** Which asset this Swissquote deposit carries; assumed 'ETH' if unset (Send is ETH-only). */
+  swissquoteAsset?: TransferAsset;
 };
 
 export type Contact = { name: string; address: Address };
@@ -89,3 +91,6 @@ export type ConnectedSite = {
 };
 
 export type FeeSpeed = 'low' | 'market' | 'fast';
+
+/** 'ETH' plus the ERC-20s accepted for Swissquote transfers (not WBTC — see `features/market/catalog.ts`). */
+export type TransferAsset = 'ETH' | 'USDC' | 'LINK';
