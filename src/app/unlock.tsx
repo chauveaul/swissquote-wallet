@@ -30,7 +30,13 @@ export default function Unlock() {
     setError(null);
     try {
       const ok = await unlockWithBiometrics('Unlock your wallet');
-      if (!ok && !biometricsEnabled) setError('Biometric unlock isn’t set up for this wallet. Use your password.');
+      if (!ok) {
+        setError(
+          biometricsEnabled
+            ? 'Biometrics didn’t unlock the wallet. Try again or use your password.'
+            : 'Biometric unlock isn’t set up for this wallet. Use your password.',
+        );
+      }
     } catch {
       setError('Biometrics could not unlock the wallet. Use your password.');
     }

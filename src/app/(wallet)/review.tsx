@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 
@@ -47,6 +47,7 @@ export default function Review() {
   const addActivity = useLocalActivity((s) => s.add);
   const { to, amount, speed, setSpeed, reset } = useSendDraft();
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
   // Set when the user opts out of sponsorship, or the paymaster refused it at confirmation.
   const [payInEth, setPayInEth] = useState(false);
@@ -79,11 +80,17 @@ export default function Review() {
   const total = value + fee.eth;
 
   const confirm = async () => {
+    // Lock before the biometric prompt: `busy` only lands on the next render,
+    // so a second tap while the prompt is open would start another send.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setError(null);
-    const approved = await confirmUserPresence('Confirm transaction');
-    if (!approved) return;
     setBusy(true);
     try {
+      if (!(await confirmUserPresence('Confirm transaction'))) {
+        setBusy(false);
+        return;
+      }
       let hash: `0x${string}` | undefined;
       let userOpHash: `0x${string}` | undefined;
       if (!DEMO_MODE) {
@@ -128,6 +135,8 @@ export default function Review() {
     } catch (e) {
       setError(e instanceof Error ? firstLine(e) : 'The transaction could not be sent.');
       setBusy(false);
+    } finally {
+      inFlight.current = false;
     }
   };
 

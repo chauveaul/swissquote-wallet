@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -62,6 +62,7 @@ export default function SwissquoteAccount() {
   const [asset, setAsset] = useState<TransferAsset>('ETH');
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
   const [unlinking, setUnlinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pin, setPin] = useState('');
@@ -114,10 +115,14 @@ export default function SwissquoteAccount() {
       setError('Enter an amount.');
       return;
     }
-    const approved = await confirmUserPresence(direction === 'toSwissquote' ? 'Move to Swissquote' : 'Withdraw from Swissquote');
-    if (!approved) return;
+    // Lock before the biometric prompt: `busy` only lands on the next render,
+    // so a second tap while the prompt is open would start another transfer.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     try {
+      const approved = await confirmUserPresence(direction === 'toSwissquote' ? 'Move to Swissquote' : 'Withdraw from Swissquote');
+      if (!approved) return;
       if (direction === 'toSwissquote') {
         if (amountNum > walletAmount) throw new Error(`Insufficient ${asset} balance.`);
         const hash = await sendAsset({
@@ -156,6 +161,7 @@ export default function SwissquoteAccount() {
     } catch (e) {
       setError(e instanceof Error ? e.message.split('\n')[0]! : 'Transfer failed.');
     } finally {
+      inFlight.current = false;
       setBusy(false);
       setSessionVersion((v) => v + 1);
     }

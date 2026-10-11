@@ -1,11 +1,6 @@
 import { useEffect, useState, type ComponentProps } from 'react';
 import { Keyboard } from 'react-native';
-import {
-  KeyboardEvents,
-  KeyboardToolbar,
-  useReanimatedFocusedInput,
-  useReanimatedKeyboardAnimation,
-} from 'react-native-keyboard-controller';
+import { KeyboardEvents, KeyboardToolbar, useReanimatedFocusedInput } from 'react-native-keyboard-controller';
 import { useAnimatedReaction } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -22,37 +17,10 @@ import { scheduleOnRN } from 'react-native-worklets';
  * - React Native's own `keyboardDidHide`, which Android re-checks on every
  *   layout pass and so corrects itself.
  */
-// DEBUG-KBD
-const t0 = Date.now();
-export function kbdLog(msg: string) {
-  console.log(`[kbd] +${Date.now() - t0}ms ${msg}`);
-}
-
 export function FocusedKeyboardToolbar(props: ComponentProps<typeof KeyboardToolbar>) {
   const { input } = useReanimatedFocusedInput();
   const [focused, setFocused] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(() => Keyboard.isVisible());
-  // DEBUG-KBD: temporary instrumentation
-  const { height } = useReanimatedKeyboardAnimation();
-  useAnimatedReaction(
-    () => Math.round(height.value),
-    (h, prev) => {
-      if (h !== prev && (h === 0 || prev === 0 || prev === null || Math.abs(h - (prev ?? 0)) > 150)) {
-        scheduleOnRN(kbdLog, `lib height ${prev} -> ${h}`);
-      }
-    },
-  );
-  useEffect(() => {
-    const subs = (['keyboardWillShow', 'keyboardDidShow', 'keyboardWillHide', 'keyboardDidHide'] as const).map((e) =>
-      KeyboardEvents.addListener(e, (ev) => kbdLog(`lib ${e} h=${ev.height}`)),
-    );
-    const rn = (['keyboardDidShow', 'keyboardDidHide'] as const).map((e) =>
-      Keyboard.addListener(e, (ev) => kbdLog(`rn ${e} h=${ev?.endCoordinates?.height}`)),
-    );
-    return () => [...subs, ...rn].forEach((x) => x.remove());
-  }, []);
-  useEffect(() => kbdLog(`state focused=${focused} keyboardOpen=${keyboardOpen}`), [focused, keyboardOpen]);
-
   useAnimatedReaction(
     () => input.value !== null,
     (hasInput, previous) => {

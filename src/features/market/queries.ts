@@ -502,7 +502,7 @@ export function useActivity() {
     ? demo.isRefetching
     : history.some((q) => q.isRefetching) || tokenHistory.some((q) => q.isRefetching);
 
-  if (DEMO_MODE) return { data: [...allLocal, ...(demo.data ?? [])], refetch, isRefetching, isLoading: demo.isLoading };
+  if (DEMO_MODE) return { data: [...local, ...(demo.data ?? [])], refetch, isRefetching, isLoading: demo.isLoading };
   return {
     data: mergeActivity(local, [...chain, ...tokenChain]),
     refetch,

@@ -15,9 +15,11 @@ import { colors } from '@/theme/tokens';
 
 /** Add or edit a contact. Not drawn in the design; built from Send's form style. */
 export default function ContactEditor() {
-  const params = useLocalSearchParams<{ address?: string }>();
+  // Deep links can repeat a key (`?address=a&address=b`), which arrives as an array.
+  const params = useLocalSearchParams<{ address?: string | string[] }>();
+  const paramAddress = Array.isArray(params.address) ? params.address[0] : params.address;
   const existing = useWallet((s) =>
-    params.address ? s.meta?.contacts.find((c) => c.address.toLowerCase() === params.address!.toLowerCase()) : undefined,
+    paramAddress ? s.meta?.contacts.find((c) => c.address.toLowerCase() === paramAddress.toLowerCase()) : undefined,
   );
   const saveContact = useWallet((s) => s.saveContact);
   const deleteContact = useWallet((s) => s.deleteContact);

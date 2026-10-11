@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 
@@ -30,6 +30,7 @@ export default function BuyReview() {
   const price = useSpotPrice(symbol);
   const [secondsLeft, setSecondsLeft] = useState(QUOTE_TTL_S);
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const expired = secondsLeft <= 0;
@@ -59,8 +60,16 @@ export default function BuyReview() {
       setError('Buying is not available yet.');
       return;
     }
-    if (!(await confirmUserPresence('Confirm purchase'))) return;
+    // Lock before the biometric prompt: `busy` only lands on the next render,
+    // so a second tap while the prompt is open would start another purchase.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
+    if (!(await confirmUserPresence('Confirm purchase'))) {
+      inFlight.current = false;
+      setBusy(false);
+      return;
+    }
     addActivity({
       id: localActivityId(),
       kind: 'buy',

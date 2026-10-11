@@ -10,7 +10,6 @@ import { Text } from '@/components/Text';
 import { openBackup, type BackupFile } from '@/features/wallet/backup';
 import { WrongPasswordError } from '@/features/wallet/vault';
 import { closeKeyboard } from '@/lib/keyboard';
-import { kbdLog } from '@/components/FocusedKeyboardToolbar'; // DEBUG-KBD
 import { colors, radii } from '@/theme/tokens';
 
 type Props = {
@@ -38,19 +37,11 @@ export function BackupImportScreen({ fileName, backup, onCancel, onUnlocked }: P
     setBusy(true);
     setError(null);
     try {
-      kbdLog('unlock: closeKeyboard start'); // DEBUG-KBD
       await closeKeyboard();
-      kbdLog('unlock: closeKeyboard done, scrypt start'); // DEBUG-KBD
-      let beats = 0; // DEBUG-KBD
-      const hb = setInterval(() => beats++, 100); // DEBUG-KBD
-      const phrase = await openBackup(backup, password).finally(() => {
-        clearInterval(hb); // DEBUG-KBD
-        kbdLog(`unlock: scrypt end, JS heartbeats=${beats}`); // DEBUG-KBD
-      });
+      const phrase = await openBackup(backup, password);
       setPassword('');
       onUnlocked(phrase);
     } catch (e) {
-      kbdLog('unlock: failed, showing error'); // DEBUG-KBD
       setError(e instanceof WrongPasswordError ? 'Incorrect backup password. Try again.' : (e as Error).message);
       setBusy(false);
     }
