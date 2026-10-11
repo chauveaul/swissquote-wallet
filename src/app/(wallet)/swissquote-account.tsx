@@ -188,8 +188,9 @@ export default function SwissquoteAccount() {
       </View>
 
       <Callout tone="info">
-        Demo only: {swissquote.name}’s account lives in a mock server, not a real bank. The
-        transfers themselves are real signed transactions on {account.name}’s selected network.
+        You’re in demo mode: {swissquote.name}’s Swissquote balance shown below is a sample account, not a
+        connected bank account. Transfers you make are still real, signed transactions on {account.name}’s
+        selected network.
       </Callout>
 
       {!signedIn ? (
@@ -262,8 +263,8 @@ export default function SwissquoteAccount() {
         </Text>
         <Text size={13} color={colors.textMuted}>
           {direction === 'toSwissquote'
-            ? `Sent to Swissquote's custodial address — only a verified wallet can land here.`
-            : `Always lands on ${truncateAddress(account.address)} — the address Swissquote already verified for this account — after a sanctions screen.`}
+            ? `Sent to your Swissquote account's deposit address. Only deposits from your verified wallet are credited.`
+            : `Always sent to ${truncateAddress(account.address)}, the wallet address already verified for this account, after a sanctions check.`}
         </Text>
       </View>
 

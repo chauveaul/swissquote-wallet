@@ -85,3 +85,55 @@ export async function fetchTransactions(networkId: NetworkId, address: Address, 
   if (!Array.isArray(body.items)) return [];
   return body.items.map((i) => parseTransaction(i as RawTx)).filter((t): t is ChainTx => t !== null);
 }
+
+export type ChainTokenTransfer = {
+  hash: Hash;
+  timestamp: number;
+  from: Address;
+  to: Address;
+  tokenAddress: Address;
+  /** Raw integer amount, not yet divided by the token's decimals. */
+  rawValue: bigint;
+};
+
+type RawTokenTransfer = {
+  tx_hash?: unknown;
+  timestamp?: unknown;
+  from?: { hash?: unknown } | null;
+  to?: { hash?: unknown } | null;
+  token?: { address?: unknown } | null;
+  total?: { value?: unknown } | null;
+};
+
+/** Validates one Blockscout token-transfer entry; null if it can't be shown. Exported for tests. */
+export function parseTokenTransfer(raw: RawTokenTransfer): ChainTokenTransfer | null {
+  if (!isHex(raw.tx_hash) || !isHex(raw.from?.hash) || !isHex(raw.to?.hash) || !isHex(raw.token?.address)) return null;
+  const time = typeof raw.timestamp === 'string' ? Date.parse(raw.timestamp) : NaN;
+  return {
+    hash: raw.tx_hash,
+    timestamp: Number.isFinite(time) ? time : Date.now(),
+    from: raw.from.hash as Address,
+    to: raw.to.hash as Address,
+    tokenAddress: raw.token.address as Address,
+    rawValue: toBigInt(raw.total?.value),
+  };
+}
+
+/**
+ * Latest ERC-20 transfers into or out of `address`, newest first. Native
+ * transactions come from {@link fetchTransactions} instead — Blockscout
+ * reports the two separately.
+ */
+export async function fetchTokenTransfers(
+  networkId: NetworkId,
+  address: Address,
+  signal?: AbortSignal,
+): Promise<ChainTokenTransfer[]> {
+  const host = HOSTS[networkId];
+  if (!host) return [];
+  const url = `https://${host}/api/v2/addresses/${address}/token-transfers?type=ERC-20`;
+  const res = await fetchWithTimeout(url, { signal, headers: { accept: 'application/json' } }, TIMEOUT_MS, 'Blockscout');
+  const body = (await res.json()) as { items?: unknown };
+  if (!Array.isArray(body.items)) return [];
+  return body.items.map((i) => parseTokenTransfer(i as RawTokenTransfer)).filter((t): t is ChainTokenTransfer => t !== null);
+}

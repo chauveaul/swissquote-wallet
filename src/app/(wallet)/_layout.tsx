@@ -7,7 +7,9 @@ export default function WalletLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="accounts" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="account-name" options={{ presentation: 'modal' }} />
+      {/* Always opened from inside the Accounts modal — pushed on top of it, not
+          presented as its own modal (stacking two native modals is unreliable). */}
+      <Stack.Screen name="account-name" />
       <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
     </Stack>
   );

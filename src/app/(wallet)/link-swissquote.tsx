@@ -96,15 +96,15 @@ export default function LinkSwissquote() {
       </View>
 
       <Callout tone="info">
-        Demo only: this is a mock Swissquote server with fake customers, not a real bank. The PIN
-        for every account below is <Text weight={700}>0000</Text>.
+        You’re in demo mode: choose a sample account below. For every account, the PIN is{' '}
+        <Text weight={700}>0000</Text>.
       </Callout>
 
-      <SettingsGroup label="Choose a demo account">
+      <SettingsGroup label="Choose an account">
         {isLoading ? (
           <SettingsRow label="Loading…" />
         ) : !customers?.length ? (
-          <SettingsRow label="Mock server unreachable" detail="Run `npm run swissquote:mock` and try again." />
+          <SettingsRow label="Can’t reach Swissquote" detail="Check your connection and try again." />
         ) : (
           customers.map((c, i) => (
             <SettingsRow

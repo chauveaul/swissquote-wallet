@@ -6,9 +6,10 @@ import { create } from 'zustand';
 import { showToast } from '@/components/Toast';
 import { useNetworkId, useSelectedAccount, useWallet, type AccountMeta } from '@/features/wallet/store';
 import { DEMO_MODE, MARKET_DATA } from '@/lib/config';
+import { ERC20, ERC20_DECIMALS } from '@/lib/erc20';
 import { formatNumber } from '@/lib/format';
 import { getNetwork, networks, type NetworkId } from '@/lib/networks';
-import { fetchTransactions, type ChainTx } from '@/services/blockscout/historyApi';
+import { fetchTokenTransfers, fetchTransactions, type ChainTokenTransfer, type ChainTx } from '@/services/blockscout/historyApi';
 import { estimateFees, getNativeBalance, publicClient } from '@/services/chain';
 import { getGaslessReceipt } from '@/services/gasless';
 import { confirmSwissquoteDeposit } from '@/services/swissquoteMock';
@@ -383,6 +384,44 @@ export function isIncomingSpam(tx: ChainTx, account: AccountMeta): boolean {
   return tx.value === 0n && tx.from.toLowerCase() !== account.address.toLowerCase();
 }
 
+/** Which of our supported ERC-20s a Blockscout token-transfer's token address is, if any. */
+export function erc20AssetFor(networkId: NetworkId, tokenAddress: Address): 'USDC' | 'LINK' | null {
+  const tokens = ERC20[networkId];
+  if (!tokens) return null;
+  const lower = tokenAddress.toLowerCase();
+  if (tokens.USDC?.toLowerCase() === lower) return 'USDC';
+  if (tokens.LINK?.toLowerCase() === lower) return 'LINK';
+  return null;
+}
+
+/**
+ * An ERC-20 transfer as seen by `account`, same shape as {@link chainTxToActivity}.
+ * Exported for tests.
+ */
+export function tokenTransferToActivity(
+  transfer: ChainTokenTransfer,
+  asset: 'USDC' | 'LINK',
+  account: AccountMeta,
+  networkId: NetworkId,
+  priceChf: number | null,
+): ActivityItem {
+  const outgoing = transfer.from.toLowerCase() === account.address.toLowerCase();
+  const amount = Number(transfer.rawValue) / 10 ** ERC20_DECIMALS[asset];
+  return {
+    id: transfer.hash,
+    kind: outgoing ? 'send' : 'receive',
+    title: outgoing ? `Sent ${asset}` : `Received ${asset}`,
+    status: 'confirmed',
+    amount: amount === 0 ? `0 ${asset}` : `${outgoing ? '−' : '+'} ${formatNumber(amount, 4)} ${asset}`,
+    valueChf: priceChf === null ? null : amount * priceChf,
+    timestamp: transfer.timestamp,
+    hash: transfer.hash,
+    accountIndex: account.index,
+    networkId,
+    counterparty: outgoing ? { address: transfer.to } : { address: transfer.from },
+  };
+}
+
 /** Pending sends not indexed yet come first; anything on-chain wins over its local copy. */
 export function mergeActivity(local: ActivityItem[], chain: ActivityItem[]): ActivityItem[] {
   const contacts = new Map(local.flatMap((i) => (i.hash && i.counterparty?.label ? [[i.hash.toLowerCase(), i.counterparty]] : [])));
@@ -404,7 +443,8 @@ export function useActivity() {
   // useActivityConfirmations's own comment for why.
   const account = useSelectedAccount();
   const allLocal = useLocalActivity((s) => s.items);
-  const ethChf = useQuotes().bySymbol.get('ETH')?.price ?? null;
+  const quotes = useQuotes();
+  const ethChf = quotes.bySymbol.get('ETH')?.price ?? null;
   const demo = useQuery({ queryKey: ['activity'], queryFn: async () => demoActivity, enabled: DEMO_MODE });
 
   const history = useQueries({
@@ -418,22 +458,51 @@ export function useActivity() {
     })),
   });
 
+  // ERC-20 transfers (USDC, LINK) don't show up in `history` above — Blockscout
+  // reports them separately — so without this they'd only ever show locally
+  // and vanish the moment the app restarts, unlike native sends.
+  const tokenHistory = useQueries({
+    queries: networks.map((n) => ({
+      queryKey: ['tokenHistory', account.address, n.id],
+      queryFn: ({ signal }: { signal: AbortSignal }) => fetchTokenTransfers(n.id, account.address, signal),
+      enabled: !DEMO_MODE && account.address !== NO_ADDRESS && Boolean(ERC20[n.id]),
+      staleTime: 15_000,
+      refetchInterval: 30_000,
+      retry: 1,
+    })),
+  });
+
   const local = allLocal.filter((i) => i.accountIndex === account.index);
   const chain = history.flatMap((q, i) =>
     (q.data ?? []).filter((tx) => !isIncomingSpam(tx, account)).map((tx) => chainTxToActivity(tx, account, networks[i]!.id, ethChf)),
   );
+  const tokenChain = tokenHistory.flatMap((q, i) => {
+    const networkId = networks[i]!.id;
+    return (q.data ?? []).flatMap((transfer) => {
+      const asset = erc20AssetFor(networkId, transfer.tokenAddress);
+      if (!asset) return [];
+      const price = quotes.bySymbol.get(asset)?.price ?? null;
+      return [tokenTransferToActivity(transfer, asset, account, networkId, price)];
+    });
+  });
   const refetch = () => {
-    if (DEMO_MODE) demo.refetch();
-    else history.forEach((q) => q.refetch());
+    if (DEMO_MODE) {
+      demo.refetch();
+    } else {
+      history.forEach((q) => q.refetch());
+      tokenHistory.forEach((q) => q.refetch());
+    }
   };
-  const isRefetching = DEMO_MODE ? demo.isRefetching : history.some((q) => q.isRefetching);
+  const isRefetching = DEMO_MODE
+    ? demo.isRefetching
+    : history.some((q) => q.isRefetching) || tokenHistory.some((q) => q.isRefetching);
 
   if (DEMO_MODE) return { data: [...allLocal, ...(demo.data ?? [])], refetch, isRefetching, isLoading: demo.isLoading };
   return {
-    data: mergeActivity(local, chain),
+    data: mergeActivity(local, [...chain, ...tokenChain]),
     refetch,
     isRefetching,
-    isLoading: history.some((q) => q.isLoading),
+    isLoading: history.some((q) => q.isLoading) || tokenHistory.some((q) => q.isLoading),
   };
 }
 
