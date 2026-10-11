@@ -91,7 +91,7 @@ export default function SwissquoteAccount() {
   if (!swissquote) return <Redirect href="/link-swissquote" />;
 
   // Custody: only what Swissquote holds for the customer in this asset can come back.
-  const maxFromSwissquote = signedIn && customer ? Number(customer.holdings[asset]) : 0;
+  const maxFromSwissquote = signedIn && customer ? Number(customer.holdings?.[asset] ?? 0) : 0;
 
   const signIn = async () => {
     setError(null);
@@ -213,7 +213,7 @@ export default function SwissquoteAccount() {
         </Text>
         <Text size={13} color={colors.onDarkMuted}>
           {signedIn && customer
-            ? ASSETS.map((a) => `${formatNumber(Number(customer.holdings[a.value]), 4)} ${a.label}`).join(' · ')
+            ? ASSETS.map((a) => `${formatNumber(Number(customer.holdings?.[a.value] ?? 0), 4)} ${a.label}`).join(' · ')
             : 'Sign in to see your balance'}
         </Text>
         <Text size={13} color={colors.onDarkMuted}>
